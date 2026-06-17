@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: 280px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      position: relative;
+    }
+    h1 {
+      font-size: 16px;
+      margin: 0 0 12px 0;
+      color: #1a1a2e;
+    }
+    button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background: #fff;
+      color: #333;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+    }
+    button:hover {
+      background: #f0f4ff;
+      border-color: #4c8bf5;
+    }
+    button:active {
+      background: #e0e8ff;
+    }
+    .icon {
+      font-size: 16px;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 13px;
+      text-align: center;
+      display: none;
+    }
+    .status.show {
+      display: block;
+    }
+    .status.success {
+      background: #e6f7ed;
+      color: #0f5132;
+    }
+    .status.error {
+      background: #fde8e8;
+      color: #9b1c1c;
+    }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #eee;
+      font-size: 12px;
+      color: #888;
+    }
+    .about-link {
+      color: #4c8bf5;
+      cursor: pointer;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .about-link:hover {
+      color: #6a5af9;
+      text-decoration: underline;
+    }
+    .modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.95);
+      border-radius: 8px;
+      display: none;
+      flex-direction: column;
+      padding: 16px;
+      box-sizing: border-box;
+      z-index: 10;
+    }
+    .modal-overlay.show {
+      display: flex;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+    .modal-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a1a2e;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: #888;
+      cursor: pointer;
+      padding: 4px;
+      width: auto;
+      margin: 0;
+      display: inline;
+      text-align: center;
+      border-radius: 4px;
+      transition: 0.2s;
+    }
+    .modal-close:hover {
+      color: #333;
+      background: #f0f0f0;
+    }
+    .version {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 12px;
+    }
+    .changelog-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+    }
+    .changelog-item {
+      font-size: 13px;
+      color: #444;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    .changelog-item strong {
+      color: #1a1a2e;
+    }
+    .changelog-version {
+      color: #4c8bf5;
+      font-weight: 600;
+    }
+    textarea, input[type="text"] {
+      box-sizing: border-box;
+    }
+    input[type="text"] {
+      width: 100%;
+    }
+    /* --- Filter Section --- */
+    .filter-section {
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+    .filter-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      cursor: pointer;
+      background: #f8f9ff;
+      border: none;
+      width: 100%;
+      font-size: 13px;
+      color: #333;
+      margin: 0;
+      border-radius: 0;
+    }
+    .filter-toggle:hover {
+      background: #eef1ff;
+      border-color: transparent;
+    }
+    .filter-toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+    .filter-caret {
+      font-size: 10px;
+      transition: transform 0.2s;
+      color: #888;
+    }
+    .filter-caret.open {
+      transform: rotate(180deg);
+    }
+    .filter-body {
+      display: none;
+      padding: 10px 12px 12px;
+      background: #fff;
+      border-top: 1px solid #e8e8e8;
+    }
+    .filter-body.open {
+      display: block;
+    }
+    .filter-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .filter-row:last-child {
+      margin-bottom: 0;
+    }
+    .filter-input {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1px solid #d0d0d0;
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+      background: #fff;
+    }
+    .filter-input:focus {
+      border-color: #4c8bf5;
+      box-shadow: 0 0 0 2px rgba(76,139,245,0.12);
+    }
+    .filter-input::placeholder {
+      color: #aaa;
+    }
+    .filter-label {
+      font-size: 12px;
+      color: #666;
+      white-space: nowrap;
+    }
+    .scope-toggle {
+      display: flex;
+      border: 1px solid #d0d0d0;
+      border-radius: 6px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .scope-btn {
+      padding: 5px 9px;
+      border: none;
+      background: #fff;
+      font-size: 12px;
+      color: #666;
+      cursor: pointer;
+      margin: 0;
+      width: auto;
+      border-radius: 0;
+      display: block;
+      transition: background 0.15s, color 0.15s;
+    }
+    .scope-btn:hover {
+      background: #f0f4ff;
+      border-color: transparent;
+    }
+    .scope-btn.active {
+      background: #4c8bf5;
+      color: #fff;
+    }
+    .scope-btn.active:hover {
+      background: #3a7ae0;
+    }
+    .filter-count-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .filter-match-badge {
+      font-size: 12px;
+      color: #555;
+    }
+    .filter-match-badge .match-num {
+      font-weight: 700;
+      color: #4c8bf5;
+    }
+    .filter-match-badge .match-num.zero {
+      color: #bbb;
+    }
+    .btn-filter-extract {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #4c8bf5;
+      border-radius: 6px;
+      background: #4c8bf5;
+      color: #fff;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s;
+      margin: 0;
+    }
+    .btn-filter-extract:hover {
+      background: #3a7ae0;
+      border-color: #3a7ae0;
+    }
+    .btn-filter-extract:disabled {
+      background: #c8d8f8;
+      border-color: #c8d8f8;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <h1>Simple Tab Manager</h1>
+  
+  <!-- Filter Tabs Section -->
+  <div class="filter-section">
+    <button class="filter-toggle" id="btn-filter-toggle">
+      <span class="filter-toggle-label"><span class="icon">🔍</span> Filter &amp; Extract Tabs</span>
+      <span class="filter-caret" id="filter-caret">▼</span>
+    </button>
+    <div class="filter-body" id="filter-body">
+      <!-- Keyword + scope -->
+      <div class="filter-row">
+        <input type="text" class="filter-input" id="filter-keyword"
+               placeholder="Keywords (title or URL)…" autocomplete="off">
+        <div class="scope-toggle">
+          <button class="scope-btn active" id="scope-window" title="Search in current window">Window</button>
+          <button class="scope-btn" id="scope-all" title="Search in all windows">All</button>
+        </div>
+      </div>
+      <!-- Optional site filter -->
+      <div class="filter-row">
+        <span class="filter-label">Site:</span>
+        <input type="text" class="filter-input" id="filter-site"
+               placeholder="e.g. github.com  (optional)" autocomplete="off">
+      </div>
+      <!-- Match count + extract button -->
+      <div class="filter-count-row">
+        <span class="filter-match-badge">
+          <span class="match-num zero" id="filter-match-count">0</span> tab(s) match
+        </span>
+      </div>
+      <button class="btn-filter-extract" id="btn-filter-extract" disabled>
+        <span class="icon">↗️</span>
+        <span>Extract Matching Tabs to New Window</span>
+      </button>
+    </div>
+  </div>
+
+  <button id="btn-sort">
+    <span class="icon">📋</span>
+    <span>Sort Tabs (by URL)</span>
+  </button>
+  
+  <button id="btn-merge">
+    <span class="icon">🪟</span>
+    <span>Merge All Windows</span>
+  </button>
+  
+  <button id="btn-extract">
+    <span class="icon">🔗</span>
+    <span>Extract Same Domain</span>
+  </button>
+
+  <button id="btn-dedup-all">
+    <span class="icon">🧹</span>
+    <span>Remove Duplicates</span>
+  </button>
+
+  <button id="btn-export-csv">
+    <span class="icon">📊</span>
+    <span>Export Tabs as CSV (View)</span>
+  </button>
+
+  <button id="btn-save-google-drive">
+    <span class="icon">☁️</span>
+    <span>Save Tabs to Google Drive</span>
+  </button>
+  
+  <div id="status" class="status"></div>
+
+   <div class="footer">
+      <span id="version-text">v3.0</span>
+     <span class="about-link" id="btn-settings">Settings</span>
+     <span class="about-link" id="btn-about">About</span>
+   </div>
+
+  <div id="about-modal" class="modal-overlay">
+    <div class="modal-header">
+      <span class="modal-title">About</span>
+      <button class="modal-close" id="btn-close-about">&times;</button>
+    </div>
+    <div class="version" id="about-version">Simple Tab Manager v3.0</div>
+    <div class="changelog-title">Changelog</div>
+    <div class="changelog-item">
+      <span class="changelog-version">v3.0</span> —
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Redesigned toolbar icon: three stacked browser tabs (ear+body silhouette) with a bidirectional sort arrow — clearly communicates the extension's purpose at all sizes.</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v2.9</span> —
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Redesigned extension icon with a modern browser-tab motif, blue gradient background, and sort-arrow accent.</li>
+        <li>Renamed <strong>"Remove Duplicates (All Windows)"</strong> label to <strong>"Remove Duplicates"</strong> for brevity.</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v2.8</span> —
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Renamed <strong>"Extract Same Domain to New Window"</strong> to <strong>"Extract Same Domain"</strong> for brevity.</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v2.7</span> —
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Removed <strong>Remove Duplicates (Current Window)</strong> button; all-windows dedup already covered this.</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v2.6</span> — 
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Added <strong>Filter &amp; Extract Tabs</strong> section: keyword search (matches title + URL), scope toggle (This Window / All Windows), optional site filter, live match count badge, and extract-to-new-window button.</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v2.5</span> — 
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Implemented robust audio restoration with array recording and safe tab switching.</li>
+        <li>Optimized tab movement using batch operations for faster extraction.</li>
+        <li>Improved reliability and error reporting for extraction process.</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v2.0</span> — 
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Added detailed Google Drive token acquisition and refresh guidelines in Settings.</li>
+        <li>Improved token management UX with color-coded instruction boxes and validation tips.</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v1.9</span> — 
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Added step-by-step guidance in Settings for obtaining temporary (OAuth2 Playground) vs. recommended (Google Cloud Project) Google Drive tokens.</li>
+        <li>Enhanced settings interface with visual direct links and inline configurations.</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v1.8</span> — 
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Added Google Drive integration to save tabs directly as CSV files.</li>
+        <li>Implemented manual OAuth2 token authentication, dynamic token validation, and connection testing in settings.</li>
+        <li>Added CSV export including Tab Open Time and Export Time metadata.</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v1.5</span> — 
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Enhanced "Extract Same Domain" to search and extract tabs from all windows, not just current window</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v1.4</span> — 
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Fixed "Extract Same Domain" to use active tab's domain instead of most frequent domain</li>
+        <li>Eliminated blank tab creation when extracting tabs to new window</li>
+        <li>Added missing "windows" permission for reliable window operations</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v1.3</span> — 
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Enhanced duplicate removal with per-URL breakdown in status feedback</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v1.2</span> — 
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Added remove duplicates in current/all windows</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v1.1</span> — 
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Renamed to <strong>Simple Tab Manager</strong> to avoid naming conflicts</li>
+        <li>Added auto-pause for Bilibili/YouTube when merging or extracting windows</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v1.0</span> — 
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Initial release with sort, merge, and extract features</li>
+      </ul>
+    </div>
+  </div>
+  
+  <div id="csv-modal" class="modal-overlay">
+    <div class="modal-header">
+      <span class="modal-title">Export Tabs as CSV</span>
+      <button class="modal-close" id="btn-close-csv">&times;</button>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+      <textarea id="csv-content" style="flex: 1; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-family: monospace; font-size: 12px; resize: none; margin-bottom: 8px;"></textarea>
+      <div style="display: flex; gap: 8px;">
+        <button id="btn-copy-csv" style="flex: 1;">
+          <span class="icon">📋</span>
+          <span>Copy to Clipboard</span>
+        </button>
+        <button id="btn-download-csv" style="flex: 1;">
+          <span class="icon">💾</span>
+          <span>Download CSV</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="google-drive-modal" class="modal-overlay">
+    <div class="modal-header">
+      <span class="modal-title">Save to Google Drive</span>
+      <button class="modal-close" id="btn-close-gdrive">&times;</button>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; padding: 8px 0;">
+      <label style="font-size: 13px; color: #666; margin-bottom: 6px;">Folder Name (optional):</label>
+      <input type="text" id="folder-name-input" placeholder="e.g., MyTabs" style="padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 13px; margin-bottom: 12px;">
+      <label style="font-size: 13px; color: #666; margin-bottom: 6px;">File Name (optional):</label>
+      <input type="text" id="file-name-input" placeholder="tabs-export.csv" style="padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 13px; margin-bottom: 12px;">
+      <div id="gdrive-status" style="font-size: 12px; color: #666; margin-bottom: 8px; min-height: 32px;"></div>
+      <button id="btn-upload-gdrive" style="width: 100%;">
+        <span class="icon">⬆️</span>
+        <span>Upload to Google Drive</span>
+      </button>
+    </div>
+  </div>
+  
+  <script src="lib/browser-polyfill.min.js"></script>
+    <script src="popup.js"></script>
+</body>
+</html>

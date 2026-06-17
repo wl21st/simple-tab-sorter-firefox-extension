@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+npm-debug.log
+
+# Build artifacts
+dist/
+build/
+*.crx
+*.zip
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.local
+
+# Documentation (development only)
+docs/

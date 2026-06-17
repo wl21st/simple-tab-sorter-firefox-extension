@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Tab Manager Settings</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      color: #1a1a2e;
+      margin-top: 0;
+      font-size: 28px;
+    }
+    .section {
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .section:last-child {
+      border-bottom: none;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+    }
+    .section-desc {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: #4c8bf5;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #3a7ce5;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(76, 139, 245, 0.3);
+    }
+    .btn-danger {
+      background: #d32f2f;
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #c62828;
+    }
+    .status {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 14px;
+      display: none;
+    }
+    .status.show {
+      display: block;
+    }
+    .status.success {
+      background: #e6f7ed;
+      color: #0f5132;
+      border: 1px solid #86efac;
+    }
+    .status.error {
+      background: #fde8e8;
+      color: #9b1c1c;
+      border: 1px solid #fca5a5;
+    }
+    .status.info {
+      background: #e3f2fd;
+      color: #0d47a1;
+      border: 1px solid #90caf9;
+    }
+    .auth-status {
+      padding: 12px 16px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    .auth-status.connected {
+      background: #e6f7ed;
+      color: #0f5132;
+      border-left: 4px solid #4caf50;
+    }
+    .auth-status.disconnected {
+      background: #fde8e8;
+      color: #9b1c1c;
+      border-left: 4px solid #d32f2f;
+    }
+    .user-info {
+      font-size: 13px;
+      color: #666;
+      margin-top: 8px;
+    }
+    .extension-id {
+      background: #f0f0f0;
+      padding: 10px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 12px;
+      word-break: break-all;
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📋 Tab Manager Settings</h1>
+
+    <div class="section">
+      <div class="section-title">Google Drive Integration</div>
+      <div class="section-desc">
+        Connect your Google account to save tabs directly to Google Drive. Your files are saved to a "Tab Manager" folder in your Google Drive.
+      </div>
+      
+      <div id="auth-status" class="auth-status disconnected">
+        ⚠️ Not connected to Google Drive
+      </div>
+      <div id="user-info" class="user-info" style="display: none;"></div>
+
+      <div id="status" class="status"></div>
+      <button id="btn-clear-error" style="display: none; width: 100%; margin-top: 8px;">Dismiss Error</button>
+
+      <button id="btn-retest-token" class="btn-primary" style="display: none; width: 100%; margin-top: 8px;">
+        🔄 Retest Token
+      </button>
+
+      <button id="btn-disconnect" class="btn-danger" style="display: none; width: 100%; margin-top: 8px;">
+        🔌 Disconnect
+      </button>
+
+      <div id="manual-token-section" style="margin-bottom: 12px;">
+        <label style="font-size: 12px; color: #666; display: block; margin-bottom: 6px;">
+          🔑 Paste your Google Access Token:
+        </label>
+        <textarea id="token-input" placeholder="Paste access token from Drive API v3 on OAuth2 Playground..." style="width: 100%; height: 60px; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-family: monospace; font-size: 11px; resize: vertical; box-sizing: border-box;"></textarea>
+        
+        <label style="font-size: 12px; color: #666; display: block; margin-top: 8px; margin-bottom: 6px;">
+          🔄 Paste Refresh Token (optional, for auto-refresh):
+        </label>
+        <textarea id="refresh-token-input" placeholder="Paste refresh token (optional - allows automatic token refresh)..." style="width: 100%; height: 50px; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-family: monospace; font-size: 11px; resize: vertical; box-sizing: border-box;"></textarea>
+        
+        <label style="font-size: 12px; display: flex; align-items: center; gap: 8px; margin-top: 8px; margin-bottom: 12px; color: #666;">
+          <input type="checkbox" id="skip-validation" style="cursor: pointer;">
+          Save without testing (keep as-is)
+        </label>
+        
+        <button id="btn-save-token" class="btn-primary" style="width: 100%;">
+          💾 Save & Test Token
+        </button>
+        
+        <!-- Token Acquisition & Refresh Guide -->
+        <div style="margin-top: 16px;">
+          <!-- Quick Reference Box -->
+          <div style="font-size: 11px; color: #0d47a1; margin-bottom: 12px; line-height: 1.6; padding: 12px; background: #e3f2fd; border-radius: 6px; border-left: 3px solid #2196f3;">
+            <div style="font-weight: 600; color: #0d47a1; margin-bottom: 8px;">ℹ️ Token Guide:</div>
+            <ul style="margin: 0; padding-left: 18px;">
+              <li style="margin-bottom: 4px;"><strong>Access Token:</strong> Required - grants permission to Google Drive</li>
+              <li style="margin-bottom: 4px;"><strong>Refresh Token:</strong> Optional - enables automatic token refresh (recommended)</li>
+              <li><strong>Token Expiry:</strong> Access tokens last ~1 hour. Refresh tokens work indefinitely (if you have a refresh token, auto-renewal is enabled).</li>
+            </ul>
+          </div>
+
+          <!-- Temporary Solution -->
+          <div style="font-size: 11px; color: #888; margin-bottom: 12px; line-height: 1.6; padding: 12px; background: #fff3cd; border-radius: 6px; border-left: 3px solid #ff9800;">
+            <div style="font-weight: 600; color: #856404; margin-bottom: 8px;">⏰ Option 1: Quick Setup (Temporary - 1 hour)</div>
+            <p style="margin: 8px 0 8px 0; color: #666; font-size: 10px;">Use this for quick testing. Tokens expire after ~1 hour and must be manually refreshed.</p>
+            <ol style="margin: 0; padding-left: 18px;">
+              <li style="margin-bottom: 6px;">Visit <a href="https://developers.google.com/oauthplayground" target="_blank" style="color: #ff9800; text-decoration: none; font-weight: 500;">Google OAuth2 Playground →</a></li>
+              <li style="margin-bottom: 6px;">In the right panel (OAuth 2.0 Configuration), click the gear icon ⚙️ and check "Use your own OAuth credentials"</li>
+              <li style="margin-bottom: 6px;">On the left panel, search for "Drive API v3"</li>
+              <li style="margin-bottom: 6px;">Select scope: <code style="background: #f0f0f0; padding: 2px 4px; border-radius: 2px;">https://www.googleapis.com/auth/drive</code></li>
+              <li style="margin-bottom: 6px;">Click "Authorize APIs" and log in with your Google account</li>
+              <li style="margin-bottom: 6px;">Click "Exchange authorization code for tokens"</li>
+              <li style="margin-bottom: 6px;">Copy the <code style="background: #f0f0f0; padding: 2px 4px; border-radius: 2px;">access_token</code> value from the response and paste above</li>
+              <li style="margin-bottom: 6px;">Optionally, copy the <code style="background: #f0f0f0; padding: 2px 4px; border-radius: 2px;">refresh_token</code> and paste above for auto-refresh</li>
+              <li>Click "Save & Test Token" to validate</li>
+            </ol>
+            <div style="margin-top: 8px; padding: 8px; background: #ffe0b2; border-radius: 4px; font-size: 10px; color: #666;">
+              ⚠️ <strong>Refresh when expired:</strong> Use the "🔄 Retest Token" button to validate. If expired, repeat steps 5-7 to get a new access token.
+            </div>
+          </div>
+
+          <!-- Permanent Solution -->
+          <div style="font-size: 11px; color: #1b5e20; margin-bottom: 12px; line-height: 1.6; padding: 12px; background: #e8f5e9; border-radius: 6px; border-left: 3px solid #4caf50;">
+            <div style="font-weight: 600; color: #1b5e20; margin-bottom: 8px;">✅ Option 2: Recommended Setup (Permanent - Auto-refresh)</div>
+            <p style="margin: 8px 0 8px 0; color: #1b5e20; font-size: 10px;">One-time setup that works indefinitely. Tokens refresh automatically in the background.</p>
+            <ol style="margin: 0; padding-left: 18px;">
+              <li style="margin-bottom: 6px;">Go to <a href="https://console.cloud.google.com/" target="_blank" style="color: #4caf50; text-decoration: none; font-weight: 500;">Google Cloud Console →</a></li>
+              <li style="margin-bottom: 6px;">Create a new project named "Tab Manager"</li>
+              <li style="margin-bottom: 6px;">Go to APIs & Services → Enable "Google Drive API"</li>
+              <li style="margin-bottom: 6px;">Go to Credentials → Click "Create Credentials" → OAuth 2.0 Client ID</li>
+              <li style="margin-bottom: 6px;">Select "Chrome Extension" as the application type</li>
+              <li style="margin-bottom: 6px;">Add your Extension ID (shown in the "Extension Information" section below)</li>
+              <li style="margin-bottom: 6px;">Copy the generated Client ID and Client Secret</li>
+              <li style="margin-bottom: 6px;">Create a file named <code style="background: #f0f0f0; padding: 2px 4px; border-radius: 2px;">oauth-config.json</code> in the extension folder:</li>
+            </ol>
+            <div style="margin: 8px 0; padding: 8px; background: #f0f0f0; border-radius: 4px; font-family: monospace; font-size: 10px; overflow-x: auto; line-height: 1.4;">
+{<br>
+&nbsp;&nbsp;"clientId": "YOUR_CLIENT_ID.apps.googleusercontent.com",<br>
+&nbsp;&nbsp;"clientSecret": "YOUR_CLIENT_SECRET"<br>
+}
+            </div>
+            <ol style="margin: 8px 0 0 0; padding-left: 18px;">
+              <li style="margin-bottom: 6px;">Reload the extension (go to chrome://extensions)</li>
+              <li style="margin-bottom: 6px;">Click the extension's "Authorize" button in the popup</li>
+              <li>Tokens will auto-refresh automatically - no manual intervention needed!</li>
+            </ol>
+            <div style="margin-top: 8px; padding: 8px; background: #c8e6c9; border-radius: 4px; font-size: 10px; color: #1b5e20;">
+              💚 <strong>Auto-refresh:</strong> Tokens refresh automatically. Use "🔄 Retest Token" to check status anytime.
+            </div>
+          </div>
+
+          <!-- Manual Token Refresh -->
+          <div style="font-size: 11px; color: #6a1b9a; margin-top: 12px; line-height: 1.6; padding: 12px; background: #f3e5f5; border-radius: 6px; border-left: 3px solid #9c27b0;">
+            <div style="font-weight: 600; color: #6a1b9a; margin-bottom: 8px;">🔄 How to Manually Refresh Your Token:</div>
+            <p style="margin: 8px 0 8px 0; color: #666; font-size: 10px;">If your token expires and you need to refresh it manually:</p>
+            <ol style="margin: 0; padding-left: 18px;">
+              <li style="margin-bottom: 6px;"><strong>If you have a Refresh Token:</strong> Paste your refresh token in the field above. The extension will automatically refresh the access token when needed.</li>
+              <li style="margin-bottom: 6px;"><strong>If you only have an Access Token:</strong> Go back to <a href="https://developers.google.com/oauthplayground" target="_blank" style="color: #9c27b0; text-decoration: none;">OAuth2 Playground</a> and repeat steps 5-7 to get a new access token, then paste it above.</li>
+              <li><strong>Check Status:</strong> Click "🔄 Retest Token" to verify your token is valid.</li>
+            </ol>
+            <div style="margin-top: 8px; padding: 8px; background: #ede7f6; border-radius: 4px; font-size: 10px; color: #666;">
+              💡 <strong>Tip:</strong> Keep your refresh token safe! If you have one, you won't need to manually refresh for a very long time.
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Extension Information</div>
+      <div class="section-desc">
+        Your unique extension ID (used internally for authentication):
+      </div>
+      <div class="extension-id" id="extension-id">Loading...</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">About</div>
+      <div class="section-desc">
+        Simple Tab Manager v2.5<br>
+        <a href="https://github.com/wl21st/simple-tab-sorter-chrome-extension" target="_blank" style="color: #4c8bf5; text-decoration: none;">
+          View on GitHub →
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script src="lib/browser-polyfill.min.js"></script>
+    <script src="options.js"></script>
+</body>
+</html>
