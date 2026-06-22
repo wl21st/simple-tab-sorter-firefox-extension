@@ -178,13 +178,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Move the rest of the non-active tabs
       const restToMove = otherMatchedTabs.filter(t => t.id !== firstTabToMove.id);
       if (restToMove.length > 0) {
-        for (const t of restToMove) {
-          try {
-            await browser.tabs.move(t.id, { windowId: newWin.id, index: -1 });
-          } catch (err) {
-            console.warn(`Failed to move filtered tab ${t.id}:`, err);
-          }
-        }
+        const movePromises = restToMove.map(t =>
+          browser.tabs.move(t.id, { windowId: newWin.id, index: -1 })
+            .catch(err => {
+              console.warn(`Failed to move filtered tab ${t.id}:`, err);
+            })
+        );
+        await Promise.all(movePromises);
       }
 
       // Pause videos, then restore mute states
@@ -788,14 +788,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const moveErrors = [];
       const otherIdsToMove = otherTabs.filter(t => t.id !== firstTabToMove.id).map(t => t.id);
       if (otherIdsToMove.length > 0) {
-        for (const id of otherIdsToMove) {
-          try {
-            await browser.tabs.move(id, { windowId: newWindow.id, index: -1 });
-          } catch (err) {
-            console.warn(`Failed to move background tab ${id}:`, err);
-            moveErrors.push(`Background tabs: ${err.message}`);
-          }
-        }
+        const movePromises = otherIdsToMove.map(id =>
+          browser.tabs.move(id, { windowId: newWindow.id, index: -1 })
+            .catch(err => {
+              console.warn(`Failed to move background tab ${id}:`, err);
+              moveErrors.push(`Background tabs: ${err.message}`);
+            })
+        );
+        await Promise.all(movePromises);
       }
 
       // First pause attempt for ALL matching tabs in the new window
