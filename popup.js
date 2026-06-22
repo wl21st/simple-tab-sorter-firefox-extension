@@ -177,16 +177,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // Move the rest of the non-active tabs
       const restToMove = otherMatchedTabs.filter(t => t.id !== firstTabToMove.id);
-      let targetIndex = 1; // New window already has 1 tab
       if (restToMove.length > 0) {
-        const movePromises = restToMove.map(t => {
-          const idx = targetIndex++;
-          return browser.tabs.move(t.id, { windowId: newWin.id, index: idx })
-            .catch(err => {
-              console.warn(`Failed to move filtered tab ${t.id}:`, err);
-            });
-        });
-        await Promise.all(movePromises);
+        try {
+          // Firefox supports passing an array of tab IDs to move them all at once
+          await browser.tabs.move(restToMove.map(t => t.id), { windowId: newWin.id, index: -1 });
+        } catch (err) {
+          console.warn('Failed to move filtered tabs:', err);
+        }
       }
 
       // Pause videos, then restore mute states
@@ -201,7 +198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Finally, move the active tab if it's part of the match (this will close the popup)
       if (activeMatchedTab && activeMatchedTab.id !== firstTabToMove.id) {
         try {
-          await browser.tabs.move(activeMatchedTab.id, { windowId: newWin.id, index: targetIndex });
+          await browser.tabs.move(activeMatchedTab.id, { windowId: newWin.id, index: -1 });
           await browser.tabs.update(activeMatchedTab.id, { active: true });
         } catch (err) {
           console.warn('Failed to move active tab:', err);
@@ -550,13 +547,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const tabsToMove = allTabs.filter(tab => tab.windowId !== currentWindow.id);
       await pauseVideos(tabsToMove);
 
-      let nextIndex = currentWindow.tabs ? currentWindow.tabs.length : 1000;
-      const movePromises = tabsToMove.map(tab => {
-        const idx = nextIndex++;
-        return browser.tabs.move(tab.id, { windowId: currentWindow.id, index: idx });
-      });
+      if (tabsToMove.length > 0) {
+        await browser.tabs.move(tabsToMove.map(tab => tab.id), { windowId: currentWindow.id, index: -1 });
+      }
 
-      await Promise.all(movePromises);
       showStatus('All windows merged!');
     } catch (err) {
       showStatus('Error merging windows: ' + err.message, true);
@@ -792,17 +786,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Move remaining matching tabs (except the first moved one and the active tab)
       const moveErrors = [];
       const otherIdsToMove = otherTabs.filter(t => t.id !== firstTabToMove.id).map(t => t.id);
-      let targetIndex = 1; // New window already has 1 tab
       if (otherIdsToMove.length > 0) {
-        const movePromises = otherIdsToMove.map(id => {
-          const idx = targetIndex++;
-          return browser.tabs.move(id, { windowId: newWindow.id, index: idx })
-            .catch(err => {
-              console.warn(`Failed to move background tab ${id}:`, err);
-              moveErrors.push(`Background tabs: ${err.message}`);
-            });
-        });
-        await Promise.all(movePromises);
+        try {
+          await browser.tabs.move(otherIdsToMove, { windowId: newWindow.id, index: -1 });
+        } catch (err) {
+          console.warn('Failed to move background tabs:', err);
+          moveErrors.push(`Background tabs: ${err.message}`);
+        }
       }
 
       // First pause attempt for ALL matching tabs in the new window
@@ -839,7 +829,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // NOTE: This will likely close the popup immediately.
       if (activeTabId !== firstTabToMove.id) {
         try {
-          await browser.tabs.move(activeTabId, { windowId: newWindow.id, index: targetIndex });
+          await browser.tabs.move(activeTabId, { windowId: newWindow.id, index: -1 });
           // Ensure it's active in the new window
           await browser.tabs.update(activeTabId, { active: true });
         } catch (err) {
