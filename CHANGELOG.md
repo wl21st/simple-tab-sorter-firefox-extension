@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Filter & Extract**: Made "All Windows" the default search scope instead of "Current Window" for easier full-session tab extraction.
 
 ### Fixed
-- **Extract to New Window**: Fixed an issue in Firefox where extracting multiple tabs to a new window (both for "Filter & Extract" and "Extract Same Domain") would fail or only move tabs from a single window. The extension now safely defers moving the active tab to prevent premature popup closures and moves tabs concurrently across all windows using robust Promise mapping.
+- **Extract to New Window**: Fixed an issue in Firefox where extracting multiple tabs to a new window (both for "Filter & Extract" and "Extract Same Domain") would fail or only move tabs from a single window. The extension now works around a known Firefox API limitation by grouping bulk tab moves by their original window ID.
 
 ## [3.0] - 2026-06-11
 
