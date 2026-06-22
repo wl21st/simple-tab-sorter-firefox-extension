@@ -180,7 +180,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (restToMove.length > 0) {
         for (const t of restToMove) {
           try {
-            await browser.tabs.move(t.id, { windowId: newWin.id });
+            await browser.tabs.move(t.id, { windowId: newWin.id, index: -1 });
           } catch (err) {
             console.warn(`Failed to move filtered tab ${t.id}:`, err);
           }
@@ -199,7 +199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Finally, move the active tab if it's part of the match (this will close the popup)
       if (activeMatchedTab && activeMatchedTab.id !== firstTabToMove.id) {
         try {
-          await browser.tabs.move(activeMatchedTab.id, { windowId: newWin.id });
+          await browser.tabs.move(activeMatchedTab.id, { windowId: newWin.id, index: -1 });
           await browser.tabs.update(activeMatchedTab.id, { active: true });
         } catch (err) {
           console.warn('Failed to move active tab:', err);
@@ -549,7 +549,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await pauseVideos(tabsToMove);
       
       const movePromises = tabsToMove
-        .map(tab => browser.tabs.move(tab.id, { windowId: currentWindow.id }));
+        .map(tab => browser.tabs.move(tab.id, { windowId: currentWindow.id, index: -1 }));
       
       await Promise.all(movePromises);
       showStatus('All windows merged!');
@@ -790,7 +790,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (otherIdsToMove.length > 0) {
         for (const id of otherIdsToMove) {
           try {
-            await browser.tabs.move(id, { windowId: newWindow.id });
+            await browser.tabs.move(id, { windowId: newWindow.id, index: -1 });
           } catch (err) {
             console.warn(`Failed to move background tab ${id}:`, err);
             moveErrors.push(`Background tabs: ${err.message}`);
@@ -832,7 +832,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // NOTE: This will likely close the popup immediately.
       if (activeTabId !== firstTabToMove.id) {
         try {
-          await browser.tabs.move(activeTabId, { windowId: newWindow.id });
+          await browser.tabs.move(activeTabId, { windowId: newWindow.id, index: -1 });
           // Ensure it's active in the new window
           await browser.tabs.update(activeTabId, { active: true });
         } catch (err) {
