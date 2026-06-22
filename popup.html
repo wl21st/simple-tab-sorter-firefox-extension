@@ -398,8 +398,15 @@
     <div class="changelog-item">
       <span class="changelog-version">v3.1.1</span> —
       <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Fixed cross-window tab extraction in Firefox to work around an API limitation by grouping bulk tab moves by their original window ID.</li>
+        <li>Applied the same workaround for merging windows to ensure all tabs are correctly merged.</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v3.1</span> —
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
         <li>Made "All Windows" the default scope for the Filter & Extract feature.</li>
-        <li>Fixed cross-window tab extraction in Firefox to correctly extract tabs from all windows without premature popup closures.</li>
+        <li>Fixed "Extract to New Window" logic to safely defer moving the active tab, preventing premature popup closures.</li>
       </ul>
     </div>
     <div class="changelog-item">
