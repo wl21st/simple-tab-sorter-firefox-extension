@@ -5,6 +5,11 @@ All notable changes to Tab Manager will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1] - 2026-06-22
+
+### Fixed
+- **Extract to New Window**: Fixed an issue in Firefox where extracting multiple tabs to a new window (both for "Filter & Extract" and "Extract Same Domain") would only move the first tab due to Firefox's restriction against moving arrays of tabs across windows. Now tabs are moved sequentially, ensuring compatibility with both Firefox and Chrome.
+
 ## [3.0] - 2026-06-11
 
 ### Changed

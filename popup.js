@@ -164,7 +164,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Move the rest
       if (rest.length > 0) {
         try {
-          await browser.tabs.move(rest.map(t => t.id), { windowId: newWin.id, index: -1 });
+          for (const t of rest) {
+            await browser.tabs.move(t.id, { windowId: newWin.id, index: -1 });
+          }
         } catch (err) {
           console.warn('Some filtered tabs failed to move:', err);
         }
@@ -762,7 +764,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const otherIdsToMove = otherTabs.filter(t => t.id !== firstTabToMove.id).map(t => t.id);
       if (otherIdsToMove.length > 0) {
         try {
-          await browser.tabs.move(otherIdsToMove, { windowId: newWindow.id, index: -1 });
+          for (const id of otherIdsToMove) {
+            await browser.tabs.move(id, { windowId: newWindow.id, index: -1 });
+          }
         } catch (err) {
           console.warn('Some background tabs failed to move:', err);
           moveErrors.push(`Background tabs: ${err.message}`);
