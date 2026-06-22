@@ -178,19 +178,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Move the rest of the non-active tabs
       const restToMove = otherMatchedTabs.filter(t => t.id !== firstTabToMove.id);
       if (restToMove.length > 0) {
-        // Firefox requires bulk moves to come from the same original window.
-        // Group tabs by their windowId and move them in batches.
-        const groupedByWindow = {};
-        for (const t of restToMove) {
-          if (!groupedByWindow[t.windowId]) groupedByWindow[t.windowId] = [];
-          groupedByWindow[t.windowId].push(t.id);
-        }
-        for (const winId in groupedByWindow) {
-          try {
-            await browser.tabs.move(groupedByWindow[winId], { windowId: newWin.id, index: -1 });
-          } catch (err) {
-            console.warn(`Failed to move filtered tabs from window ${winId}:`, err);
-          }
+        try {
+          // Firefox supports passing an array of tab IDs to move them all at once
+          await browser.tabs.move(restToMove.map(t => t.id), { windowId: newWin.id, index: -1 });
+        } catch (err) {
+          console.warn('Failed to move filtered tabs:', err);
         }
       }
 
@@ -556,14 +548,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await pauseVideos(tabsToMove);
 
       if (tabsToMove.length > 0) {
-        const groupedByWindow = {};
-        for (const t of tabsToMove) {
-          if (!groupedByWindow[t.windowId]) groupedByWindow[t.windowId] = [];
-          groupedByWindow[t.windowId].push(t.id);
-        }
-        for (const winId in groupedByWindow) {
-          await browser.tabs.move(groupedByWindow[winId], { windowId: currentWindow.id, index: -1 });
-        }
+        await browser.tabs.move(tabsToMove.map(tab => tab.id), { windowId: currentWindow.id, index: -1 });
       }
 
       showStatus('All windows merged!');
@@ -800,20 +785,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // Move remaining matching tabs (except the first moved one and the active tab)
       const moveErrors = [];
-      const otherTabsToMove = otherTabs.filter(t => t.id !== firstTabToMove.id);
-      if (otherTabsToMove.length > 0) {
-        const groupedByWindow = {};
-        for (const t of otherTabsToMove) {
-          if (!groupedByWindow[t.windowId]) groupedByWindow[t.windowId] = [];
-          groupedByWindow[t.windowId].push(t.id);
-        }
-        for (const winId in groupedByWindow) {
-          try {
-            await browser.tabs.move(groupedByWindow[winId], { windowId: newWindow.id, index: -1 });
-          } catch (err) {
-            console.warn(`Failed to move background tabs from window ${winId}:`, err);
-            moveErrors.push(`Window ${winId}: ${err.message}`);
-          }
+      const otherIdsToMove = otherTabs.filter(t => t.id !== firstTabToMove.id).map(t => t.id);
+      if (otherIdsToMove.length > 0) {
+        try {
+          await browser.tabs.move(otherIdsToMove, { windowId: newWindow.id, index: -1 });
+        } catch (err) {
+          console.warn('Failed to move background tabs:', err);
+          moveErrors.push(`Background tabs: ${err.message}`);
         }
       }
 
