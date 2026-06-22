@@ -148,11 +148,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { await browser.tabs.update(r.id, { muted: true }); } catch { /* ignore */ }
       }
 
-      // Create new window with first tab
-      const [first, ...rest] = matched;
+      // Find the active tab to defer moving it (prevents popup from closing prematurely)
+      const currentWindowTabs = await browser.tabs.query({ currentWindow: true, active: true });
+      const currentActiveTab = currentWindowTabs[0];
+
+      let activeMatchedTab = null;
+      let otherMatchedTabs = [];
+      for (const t of matched) {
+        if (currentActiveTab && t.id === currentActiveTab.id) {
+          activeMatchedTab = t;
+        } else {
+          otherMatchedTabs.push(t);
+        }
+      }
+
+      // Create new window with the first background tab (if any)
+      const firstTabToMove = otherMatchedTabs.length > 0 ? otherMatchedTabs[0] : activeMatchedTab;
       let newWin;
       try {
-        newWin = await browser.windows.create({ tabId: first.id, focused: false });
+        newWin = await browser.windows.create({ tabId: firstTabToMove.id, focused: false });
       } catch (err) {
         // Restore mute on failure
         for (const r of muteRecords) {
@@ -161,10 +175,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         throw err;
       }
 
-      // Move the rest
-      if (rest.length > 0) {
+      // Move the rest of the non-active tabs
+      const restToMove = otherMatchedTabs.filter(t => t.id !== firstTabToMove.id);
+      if (restToMove.length > 0) {
         try {
-          for (const t of rest) {
+          for (const t of restToMove) {
             await browser.tabs.move(t.id, { windowId: newWin.id, index: -1 });
           }
         } catch (err) {
@@ -181,10 +196,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       const keyword = filterKeywordEl.value.trim();
       showStatus(`Extracted ${matched.length} tab${matched.length !== 1 ? 's' : ''} matching "${keyword || '(all)'}" to new window.`);
 
-      // Focus new window (may close popup)
+      // Finally, move the active tab if it's part of the match (this will close the popup)
+      if (activeMatchedTab && activeMatchedTab.id !== firstTabToMove.id) {
+        try {
+          await browser.tabs.move(activeMatchedTab.id, { windowId: newWin.id, index: -1 });
+          await browser.tabs.update(activeMatchedTab.id, { active: true });
+        } catch (err) {
+          console.warn('Failed to move active tab:', err);
+        }
+      }
+
+      // Focus new window (may close popup if it survived this far)
       try { await browser.windows.update(newWin.id, { focused: true }); } catch { /* ignore */ }
 
-      // Reset count
+      // Reset count (only executes if popup is still open)
       await updateFilterCount();
     } catch (err) {
       showStatus('Error extracting filtered tabs: ' + err.message, true);
