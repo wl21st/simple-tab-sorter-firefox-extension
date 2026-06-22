@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ─── Filter & Extract Section ──────────────────────────────────────────────
 
   // State
-  let filterScope = 'window'; // 'window' | 'all'
+  let filterScope = 'all'; // 'window' | 'all'
 
   // Elements
   const filterToggleBtn  = document.getElementById('btn-filter-toggle');
