@@ -5,6 +5,12 @@ All notable changes to Tab Manager will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-06-23
+
+### Fixed
+- **Popup Lifecycle Bug**: Fixed a persistent issue where multi-step cross-window operations ("Extract Same Domain", "Filter & Extract", and "Merge All Windows") would only process the first tab or window. This was caused by the browser instantly terminating the `popup.js` script when a new window was created or when remote windows were closed (triggering an OS focus shift).
+- **Background Delegation**: Completely offloaded window creation and all cross-window tab movements to the background service worker (`background.js`). Operations are now fully immune to popup focus-loss termination.
+
 ## [3.1.1] - 2026-06-22
 
 ### Fixed

@@ -34,6 +34,22 @@ browser.tabs.onRemoved.addListener((tabId) => {
 
 // Get all tab open times
 browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'extractTabs') {
+    handleExtractTabs(request.tabIds, request.activeTabId).then(() => {
+      sendResponse({ success: true });
+    }).catch(err => {
+      sendResponse({ error: err.message });
+    });
+    return true;
+  }
+  if (request.action === 'mergeWindows') {
+    handleMergeWindows(request.currentWindowId).then(() => {
+      sendResponse({ success: true });
+    }).catch(err => {
+      sendResponse({ error: err.message });
+    });
+    return true;
+  }
   if (request.action === 'getTabOpenTimes') {
     browser.storage.local.get(null).then((items) => {
       const tabOpenTimes = {};
@@ -125,3 +141,114 @@ async function getGoogleAuthToken(sendResponse) {
   }
 }
 
+
+
+
+async function pauseVideosBg(tabIds) {
+  const videoSites = ['bilibili.com', 'youtube.com'];
+  const tabs = await browser.tabs.query({});
+  const targetTabs = tabs.filter(t => tabIds.includes(t.id) && t.url && videoSites.some(site => t.url.includes(site)));
+  
+  if (targetTabs.length === 0) return;
+
+  try {
+    await Promise.all(
+      targetTabs.map(tab =>
+        browser.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            document.querySelectorAll('video').forEach(v => v.pause());
+          }
+        }).catch(() => {})
+      )
+    );
+  } catch (err) {
+    // Ignore
+  }
+}
+
+async function handleExtractTabs(tabIds, activeTabId) {
+  try {
+    // 1. Mute video tabs before moving to prevent autoplay
+    const tabs = await browser.tabs.query({});
+    const videoSites = ['bilibili.com', 'youtube.com'];
+    const videoTabs = tabs.filter(t => tabIds.includes(t.id) && t.url && videoSites.some(site => t.url.includes(site)));
+    
+    const muteRecords = videoTabs.map(t => ({ id: t.id, wasMuted: t.mutedInfo?.muted || false }));
+    for (const r of muteRecords) {
+      try { await browser.tabs.update(r.id, { muted: true }); } catch {}
+    }
+
+    // 2. Create an empty window (doesn't move tabs yet)
+    const newWin = await browser.windows.create({ focused: true });
+    
+    // 3. Move all background tabs sequentially
+    let targetIndex = 1;
+    for (const tabId of tabIds) {
+      if (tabId === activeTabId) continue;
+      try {
+        await browser.tabs.move(tabId, { windowId: newWin.id, index: targetIndex++ });
+      } catch (err) {
+        console.warn('Failed to move tab ' + tabId, err);
+      }
+    }
+    
+    // 4. Pause videos in the new window
+    await pauseVideosBg(tabIds);
+    
+    // 5. Restore original mute states
+    for (const r of muteRecords) {
+      try { await browser.tabs.update(r.id, { muted: r.wasMuted }); } catch {}
+    }
+    
+    // 6. Move active tab last
+    if (activeTabId) {
+      try {
+        await browser.tabs.move(activeTabId, { windowId: newWin.id, index: targetIndex });
+        await browser.tabs.update(activeTabId, { active: true });
+      } catch (err) {}
+    }
+    
+    // 7. Clean up the placeholder empty tab
+    if (newWin.tabs && newWin.tabs.length > 0) {
+      try { await browser.tabs.remove(newWin.tabs[0].id); } catch(e){}
+    } else {
+      const tempTabs = await browser.tabs.query({ windowId: newWin.id });
+      if (tempTabs.length > 0) {
+        await browser.tabs.remove(tempTabs[0].id);
+      }
+    }
+    
+    await browser.windows.update(newWin.id, { focused: true });
+  } catch (err) {
+    console.error('Extract Tabs Error:', err);
+    throw err;
+  }
+}
+
+async function handleMergeWindows(currentWindowId) {
+  try {
+    const currentWindow = await browser.windows.get(currentWindowId, { populate: true });
+    const allTabs = await browser.tabs.query({});
+    
+    const tabsToMove = allTabs.filter(tab => tab.windowId !== currentWindowId);
+    
+    // Pause videos
+    const tabIdsToMove = tabsToMove.map(t => t.id);
+    await pauseVideosBg(tabIdsToMove);
+
+    if (tabsToMove.length > 0) {
+      let targetIndexMerge = currentWindow.tabs ? currentWindow.tabs.length : 1000;
+      for (const t of tabsToMove) {
+        try {
+          await browser.tabs.move(t.id, { windowId: currentWindowId, index: targetIndexMerge++ });
+        } catch (err) {
+          console.warn('Failed to merge tab ' + t.id, err);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Merge Windows Error:', err);
+    throw err;
+  }
+}
