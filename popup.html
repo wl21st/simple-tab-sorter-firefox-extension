@@ -327,8 +327,8 @@
         <input type="text" class="filter-input" id="filter-keyword"
                placeholder="Keywords (title or URL)…" autocomplete="off">
         <div class="scope-toggle">
-          <button class="scope-btn active" id="scope-window" title="Search in current window">Window</button>
-          <button class="scope-btn" id="scope-all" title="Search in all windows">All</button>
+          <button class="scope-btn" id="scope-window" title="Search in current window">Window</button>
+          <button class="scope-btn active" id="scope-all" title="Search in all windows">All</button>
         </div>
       </div>
       <!-- Optional site filter -->
@@ -383,7 +383,7 @@
   <div id="status" class="status"></div>
 
    <div class="footer">
-      <span id="version-text">v3.0</span>
+      <span id="version-text">v3.1.1</span>
      <span class="about-link" id="btn-settings">Settings</span>
      <span class="about-link" id="btn-about">About</span>
    </div>
@@ -393,8 +393,22 @@
       <span class="modal-title">About</span>
       <button class="modal-close" id="btn-close-about">&times;</button>
     </div>
-    <div class="version" id="about-version">Simple Tab Manager v3.0</div>
+    <div class="version" id="about-version">Simple Tab Manager v3.1.1</div>
     <div class="changelog-title">Changelog</div>
+    <div class="changelog-item">
+      <span class="changelog-version">v3.1.1</span> —
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Fixed cross-window tab extraction in Firefox to work around an API limitation by grouping bulk tab moves by their original window ID.</li>
+        <li>Applied the same workaround for merging windows to ensure all tabs are correctly merged.</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
+      <span class="changelog-version">v3.1</span> —
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Made "All Windows" the default scope for the Filter & Extract feature.</li>
+        <li>Fixed "Extract to New Window" logic to safely defer moving the active tab, preventing premature popup closures.</li>
+      </ul>
+    </div>
     <div class="changelog-item">
       <span class="changelog-version">v3.0</span> —
       <ul style="margin: 4px 0 0 16px; padding: 0;">
