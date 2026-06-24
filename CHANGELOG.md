@@ -5,11 +5,21 @@ All notable changes to Tab Manager will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-06-24
+
+### Changed
+- **Extract Same Host**: Renamed from "Extract Same Domain". Now matches by exact hostname (case-insensitive) instead of guessing a "base domain" via heuristics. `portal.hyperspace.tools.sap` and `github.tools.sap` are correctly treated as different hosts.
+- Removed `extractBaseDomain` from the extract feature entirely — no more brand TLD lists, shared-hosting lists, or multi-part TLD guessing.
+
+## [3.1.5] - 2026-06-24
+
+### Fixed
+- **Extract Same Domain**: Moved all tab extraction logic from popup.js into background.js service worker. The popup now sends a message and the background script does the heavy lifting asynchronously — survives popup close on both Chrome and Firefox. Fixes the "extra windows" bug caused by the popup closing mid-operation.
+
 ## [3.1.4] - 2026-06-24
 
 ### Refactored
 - **Extract Same Domain**: Rewrote move logic to collect all tab IDs upfront before touching anything. Eliminates the entire class of "random tab left behind" bugs caused by on-the-fly active-tab special-casing. New flow: collect → mute → create window → move all remaining → restore mutes → focus.
-
 ## [3.1.3] - 2026-06-24
 
 ### Fixed

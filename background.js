@@ -59,6 +59,16 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     getGoogleAuthToken(sendResponse);
     return true;
   }
+
+  // Handle Extract Same Domain (async processing — popup just sends this message)
+  if (request.action === 'extractDomain') {
+    handleExtractDomain(request).then(result => {
+      sendResponse(result);
+    }).catch(err => {
+      sendResponse({ success: false, error: err.message });
+    });
+    return true;
+  }
 });
 
 // Exchange authorization code for tokens
@@ -125,3 +135,78 @@ async function getGoogleAuthToken(sendResponse) {
   }
 }
 
+// --- Extract Same Host: runs entirely in background (survives popup close) ---
+
+function normalizeHost(hostname) {
+  return hostname.toLowerCase();
+}
+
+async function pauseVideoTabs(tabs) {
+  const videoSites = ['bilibili.com', 'youtube.com'];
+  const targetTabs = tabs.filter(t => t.url && videoSites.some(s => t.url.includes(s)));
+  if (targetTabs.length === 0) return;
+  try {
+    await Promise.all(
+      targetTabs.map(tab =>
+        browser.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => { document.querySelectorAll('video').forEach(v => v.pause()); }
+        })
+      )
+    );
+  } catch (err) {
+    // Silently ignore injection errors (restricted pages)
+  }
+}
+
+async function handleExtractDomain(request) {
+  const { activeTabId, activeTabUrl } = request;
+
+  let currentHost;
+  try {
+    currentHost = normalizeHost(new URL(activeTabUrl).hostname);
+  } catch (e) {
+    return { success: false, error: 'Invalid URL in active tab.' };
+  }
+
+  if (!currentHost) {
+    return { success: false, error: 'Cannot determine host for active tab.' };
+  }
+
+  // Find all tabs matching the exact host across ALL windows
+  const allTabs = await browser.tabs.query({});
+  const matchingTabs = [];
+
+  for (const tab of allTabs) {
+    if (!tab.url) continue;
+    try {
+      const tabHost = normalizeHost(new URL(tab.url).hostname);
+      if (tabHost === currentHost) {
+        matchingTabs.push(tab);
+      }
+    } catch (e) {
+      // skip tabs with invalid URLs
+    }
+  }
+
+  if (matchingTabs.length < 2) {
+    return { success: false, message: 'No other tabs with same host found.' };
+  }
+
+  // Pause video tabs before moving
+  await pauseVideoTabs(matchingTabs);
+
+  // Collect all tab IDs upfront
+  const tabIds = matchingTabs.map(t => t.id);
+
+  // Create new window with the first tab, then move the rest
+  const newWindow = await browser.windows.create({ tabId: tabIds[0] });
+  if (tabIds.length > 1) {
+    await browser.tabs.move(tabIds.slice(1), { windowId: newWindow.id, index: -1 });
+  }
+
+  return {
+    success: true,
+    message: `Extracted ${matchingTabs.length} tab${matchingTabs.length !== 1 ? 's' : ''} for "${currentHost}" to new window.`
+  };
+}

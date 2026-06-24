@@ -693,169 +693,109 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- Helper: Extract domain from hostname (handles subdomains) ---
   function extractBaseDomain(hostname) {
-    // Remove www. prefix if present
     let domain = hostname.toLowerCase().replace(/^www\./, '');
-    
-    // For common TLDs, get the base domain
+
+    if (!domain || !domain.includes('.')) return domain;
+
     const parts = domain.split('.');
-    
-    // If it looks like a subdomain (has 3+ parts), try to return base domain
+
     if (parts.length >= 3) {
-      // Common multi-part TLDs
       const multiPartTLDs = [
         'co.uk', 'org.uk', 'net.uk', 'me.uk',
         'com.au', 'net.au', 'org.au',
         'com.br', 'net.br',
         'com.cn', 'net.cn', 'org.cn',
-        'com.jp', 'co.jp',
-        'com.mx',
-        'com.sg',
-        'com.tw'
+        'com.jp', 'co.jp', 'ne.jp', 'or.jp',
+        'com.mx', 'com.sg', 'com.tw',
+        'co.kr', 'or.kr',
+        'co.nz', 'net.nz', 'org.nz',
+        'co.in', 'net.in', 'org.in',
+        'com.hk', 'org.hk',
+        'co.za'
       ];
-      
+
+      // Brand/corporate gTLDs where x.brand is an organizational suffix
+      const brandTLDs = [
+        'sap', 'google', 'amazon', 'microsoft', 'apple', 'aws',
+        'ibm', 'oracle', 'cisco', 'samsung', 'sony', 'toyota',
+        'bmw', 'audi', 'honda', 'intel', 'dell', 'hp',
+        'siemens', 'bosch', 'philips', 'nokia', 'ericsson',
+        'alibaba', 'baidu', 'tencent', 'huawei', 'xiaomi'
+      ];
+
+      const sharedHostingSuffixes = [
+        'github.io', 'gitlab.io', 'netlify.app', 'vercel.app',
+        'herokuapp.com', 'firebaseapp.com', 'web.app',
+        'blogspot.com', 'blogspot.co.uk', 'blogspot.com.au',
+        'wordpress.com', 'tumblr.com', 'medium.com',
+        'azurewebsites.net', 'cloudfront.net', 'amazonaws.com',
+        'pages.dev', 'workers.dev', 'r2.dev',
+        'fly.dev', 'deno.dev',
+        'surge.sh', 'now.sh',
+        'appspot.com', 'cloudfunctions.net',
+        'azureedge.net', 'trafficmanager.net',
+        's3.amazonaws.com'
+      ];
+
+      const tld = parts[parts.length - 1];
       const lastTwo = parts.slice(-2).join('.');
-      if (multiPartTLDs.includes(lastTwo) && parts.length >= 3) {
-        // Return last 3 parts (e.g., example.co.uk)
+      const lastThree = parts.slice(-3).join('.');
+
+      // Brand gTLDs: treat x.brand as a suffix (like co.uk)
+      if (brandTLDs.includes(tld)) {
         return parts.slice(-3).join('.');
       }
-      
-      // Return last 2 parts (e.g., google.com from mail.google.com)
+
+      // Multi-part ccTLDs
+      if (multiPartTLDs.includes(lastTwo)) {
+        return parts.slice(-3).join('.');
+      }
+
+      // Shared-hosting suffixes
+      if (sharedHostingSuffixes.includes(lastTwo) || sharedHostingSuffixes.includes(lastThree)) {
+        if (sharedHostingSuffixes.includes(lastTwo)) {
+          return parts.slice(-3).join('.');
+        }
+        return parts.slice(-4).join('.');
+      }
+
       return parts.slice(-2).join('.');
     }
-    
+
     return domain;
   }
 
-  // --- 3. Extract Same Domain ---
+  // --- 3. Extract Same Host ---
   document.getElementById('btn-extract').addEventListener('click', async () => {
     try {
       const currentWindowTabs = await browser.tabs.query({ currentWindow: true });
       const activeTab = currentWindowTabs.find(tab => tab.active);
-      
+
       if (!activeTab || !activeTab.url) {
         showStatus('No active tab found.', true);
         return;
       }
 
-      let currentDomain = '';
-      try {
-        const url = new URL(activeTab.url);
-        currentDomain = extractBaseDomain(url.hostname);
-      } catch (e) {
-        showStatus('Invalid URL in active tab.', true);
-        return;
-      }
+      showStatus('Extracting...');
 
-      // Find all tabs matching the current tab's domain across ALL windows
-      const allTabs = await browser.tabs.query({});
-      const matchingTabs = [];
-      const failedTabs = [];
-      
-      for (const tab of allTabs) {
-        if (!tab.url) continue;
-        try {
-          const url = new URL(tab.url);
-          const tabDomain = extractBaseDomain(url.hostname);
-          if (tabDomain === currentDomain) {
-            matchingTabs.push(tab);
-          }
-        } catch (e) {
-          // Track failed tabs for debugging
-          failedTabs.push(tab.id);
-        }
-      }
+      // Delegate to background script (survives popup close)
+      const result = await browser.runtime.sendMessage({
+        action: 'extractDomain',
+        activeTabId: activeTab.id,
+        activeTabUrl: activeTab.url
+      });
 
-      if (matchingTabs.length < 2) {
-        showStatus('No other tabs with same domain found.', true);
-        return;
-      }
-
-      // --- Phase 1: Collect all tab IDs to move, upfront, before touching anything ---
-      const tabIdsToMove = matchingTabs.map(t => t.id);
-
-      // --- Phase 2: Auto-play Protection — mute video tabs before creating the window ---
-      const videoSites = ['bilibili.com', 'youtube.com'];
-      const videoTabs = matchingTabs.filter(tab => tab.url && videoSites.some(site => tab.url.includes(site)));
-      const muteRecords = videoTabs.map(tab => ({
-        id: tab.id,
-        wasMuted: tab.mutedInfo?.muted || false
-      }));
-      for (const record of muteRecords) {
-        try {
-          await browser.tabs.update(record.id, { muted: true });
-        } catch (err) {
-          console.warn(`Failed to mute tab ${record.id}:`, err);
-        }
-      }
-
-      // --- Phase 3: Create new window with the first tab as seed ---
-      const [seedId, ...remainingIds] = tabIdsToMove;
-      let newWindow;
-      try {
-        newWindow = await browser.windows.create({
-          tabId: seedId,
-          focused: false  // Will be focused after all tabs are assembled
-        });
-      } catch (err) {
-        // Restore mute states if window creation fails
-        for (const record of muteRecords) {
-          try { await browser.tabs.update(record.id, { muted: record.wasMuted }); } catch (e) { /* ignore */ }
-        }
-        throw err;
-      }
-
-      // --- Phase 4: Move all remaining tabs, grouped by source window (Firefox workaround) ---
-      const moveErrors = [];
-      if (remainingIds.length > 0) {
-        const tabById = Object.fromEntries(matchingTabs.map(t => [t.id, t]));
-        const groupedByWindow = {};
-        for (const id of remainingIds) {
-          const winId = tabById[id].windowId;
-          if (!groupedByWindow[winId]) groupedByWindow[winId] = [];
-          groupedByWindow[winId].push(id);
-        }
-        for (const winId in groupedByWindow) {
-          try {
-            await browser.tabs.move(groupedByWindow[winId], { windowId: newWindow.id, index: -1 });
-          } catch (err) {
-            console.warn(`Failed to move tabs from window ${winId}:`, err);
-            moveErrors.push(`Window ${winId}: ${err.message}`);
-          }
-        }
-      }
-
-      // --- Phase 5: Restore mute states and pause videos ---
-      const unmuteFailures = [];
-      for (const record of muteRecords) {
-        try {
-          await browser.tabs.update(record.id, { muted: record.wasMuted });
-        } catch (err) {
-          unmuteFailures.push(record.id);
-        }
-      }
-      await pauseVideos(matchingTabs);
-
-      // --- Phase 6: Status message ---
-      let message = moveErrors.length > 0
-        ? `Extracted ${matchingTabs.length - moveErrors.length}/${matchingTabs.length} tabs (${moveErrors.length} failed)`
-        : `Extracted ${matchingTabs.length} tabs from ${currentDomain}`;
-      if (unmuteFailures.length > 0) {
-        message += ` • Warning: Could not restore sound for ${unmuteFailures.length} tabs.`;
-      }
-      showStatus(message, unmuteFailures.length > 0 || moveErrors.length > 0);
-      if (moveErrors.length > 0 || unmuteFailures.length > 0) {
-        console.warn('Extraction completed with issues:', { moveErrors, unmuteFailures });
-      }
-
-      // --- Phase 7: Focus the new window now that everything is assembled ---
-      try {
-        await browser.windows.update(newWindow.id, { focused: true });
-      } catch (err) {
-        // Ignore if popup already closed
+      if (result && result.success) {
+        showStatus(result.message);
+      } else if (result && result.error) {
+        showStatus(result.error, true);
+      } else if (result && result.message) {
+        showStatus(result.message, true);
       }
     } catch (err) {
-      showStatus('Error extracting tabs: ' + err.message, true);
-      console.error('Extract error details:', err);
+      // Popup may close before response arrives — that's fine,
+      // background continues the work regardless
+      console.log('Extract message sent (popup may close):', err.message);
     }
   });
 });

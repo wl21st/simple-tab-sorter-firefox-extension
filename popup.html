@@ -81,7 +81,7 @@
       text-decoration: underline;
     }
     .modal-overlay {
-      position: absolute;
+      position: fixed;
       top: 0;
       left: 0;
       width: 100%;
@@ -93,6 +93,7 @@
       padding: 16px;
       box-sizing: border-box;
       z-index: 10;
+      overflow-y: auto;
     }
     .modal-overlay.show {
       display: flex;
@@ -362,7 +363,7 @@
   
   <button id="btn-extract">
     <span class="icon">🔗</span>
-    <span>Extract Same Domain</span>
+    <span>Extract Same Host</span>
   </button>
 
   <button id="btn-dedup-all">
@@ -383,7 +384,7 @@
   <div id="status" class="status"></div>
 
    <div class="footer">
-      <span id="version-text">v3.1.1</span>
+      <span id="version-text">v3.1.5</span>
      <span class="about-link" id="btn-settings">Settings</span>
      <span class="about-link" id="btn-about">About</span>
    </div>
@@ -393,8 +394,14 @@
       <span class="modal-title">About</span>
       <button class="modal-close" id="btn-close-about">&times;</button>
     </div>
-    <div class="version" id="about-version">Simple Tab Manager v3.1.1</div>
+    <div class="version" id="about-version">Simple Tab Manager v3.1.5</div>
     <div class="changelog-title">Changelog</div>
+    <div class="changelog-item">
+      <span class="changelog-version">v3.1.5</span> —
+      <ul style="margin: 4px 0 0 16px; padding: 0;">
+        <li>Moved Extract Domain operation to background service worker for reliability (popup no longer closes mid-operation).</li>
+      </ul>
+    </div>
     <div class="changelog-item">
       <span class="changelog-version">v3.1.1</span> —
       <ul style="margin: 4px 0 0 16px; padding: 0;">
