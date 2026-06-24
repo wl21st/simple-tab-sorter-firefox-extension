@@ -1,6 +1,6 @@
 {
   "name": "simple-tab-manager",
-  "version": "3.1",
+  "version": "3.1.2",
   "description": "Sort tabs, merge windows, extract tabs by domain, and save tabs to CSV.",
   "scripts": {
     "test": "jest",

@@ -84,6 +84,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   filterKeywordEl.addEventListener('input', updateFilterCount);
   filterSiteEl.addEventListener('input', updateFilterCount);
 
+  // Press Enter in either filter input to extract matching tabs
+  function onFilterEnter(e) {
+    if (e.key === 'Enter' && !btnFilterExtract.disabled) {
+      btnFilterExtract.click();
+    }
+  }
+  filterKeywordEl.addEventListener('keydown', onFilterEnter);
+  filterSiteEl.addEventListener('keydown', onFilterEnter);
+
   /** Returns tabs that match current keyword + site filters */
   async function getFilteredTabs() {
     const keyword = filterKeywordEl.value.trim().toLowerCase();
@@ -761,20 +770,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      const activeTabId = activeTab.id;
-      const otherTabs = matchingTabs.filter(t => t.id !== activeTabId);
-      
-      // --- Auto-play Protection (Mute Sandwich) ---
-      // Mute video tabs BEFORE creating the window to prevent autoplay
+      // --- Phase 1: Collect all tab IDs to move, upfront, before touching anything ---
+      const tabIdsToMove = matchingTabs.map(t => t.id);
+
+      // --- Phase 2: Auto-play Protection — mute video tabs before creating the window ---
       const videoSites = ['bilibili.com', 'youtube.com'];
       const videoTabs = matchingTabs.filter(tab => tab.url && videoSites.some(site => tab.url.includes(site)));
-      
-      // Record original mute states in an array for robust restoration (as requested)
       const muteRecords = videoTabs.map(tab => ({
         id: tab.id,
         wasMuted: tab.mutedInfo?.muted || false
       }));
-
       for (const record of muteRecords) {
         try {
           await browser.tabs.update(record.id, { muted: true });
@@ -783,51 +788,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
 
-      // Create new window with the first candidate tab (focused: false to help keep popup open)
-      // Use the first background tab if possible to keep the popup open longer
-      const firstTabToMove = otherTabs.length > 0 ? otherTabs[0] : matchingTabs[0];
+      // --- Phase 3: Create new window with the first tab as seed ---
+      const [seedId, ...remainingIds] = tabIdsToMove;
       let newWindow;
       try {
-        newWindow = await browser.windows.create({ 
-          tabId: firstTabToMove.id,
-          focused: false
+        newWindow = await browser.windows.create({
+          tabId: seedId,
+          focused: false  // Will be focused after all tabs are assembled
         });
       } catch (err) {
         // Restore mute states if window creation fails
         for (const record of muteRecords) {
-          try {
-            await browser.tabs.update(record.id, { muted: record.wasMuted });
-          } catch (e) {
-            // Ignore
-          }
+          try { await browser.tabs.update(record.id, { muted: record.wasMuted }); } catch (e) { /* ignore */ }
         }
         throw err;
       }
-      
-      // Move remaining matching tabs (except the first moved one and the active tab)
+
+      // --- Phase 4: Move all remaining tabs, grouped by source window (Firefox workaround) ---
       const moveErrors = [];
-      const otherTabsToMove = otherTabs.filter(t => t.id !== firstTabToMove.id);
-      if (otherTabsToMove.length > 0) {
+      if (remainingIds.length > 0) {
+        const tabById = Object.fromEntries(matchingTabs.map(t => [t.id, t]));
         const groupedByWindow = {};
-        for (const t of otherTabsToMove) {
-          if (!groupedByWindow[t.windowId]) groupedByWindow[t.windowId] = [];
-          groupedByWindow[t.windowId].push(t.id);
+        for (const id of remainingIds) {
+          const winId = tabById[id].windowId;
+          if (!groupedByWindow[winId]) groupedByWindow[winId] = [];
+          groupedByWindow[winId].push(id);
         }
         for (const winId in groupedByWindow) {
           try {
             await browser.tabs.move(groupedByWindow[winId], { windowId: newWindow.id, index: -1 });
           } catch (err) {
-            console.warn(`Failed to move background tabs from window ${winId}:`, err);
+            console.warn(`Failed to move tabs from window ${winId}:`, err);
             moveErrors.push(`Window ${winId}: ${err.message}`);
           }
         }
       }
 
-      // First pause attempt for ALL matching tabs in the new window
-      await pauseVideos(matchingTabs);
-
-      // --- Restore Mute States BEFORE moving the active tab ---
-      // This ensures unmuting happens while the popup is still open.
+      // --- Phase 5: Restore mute states and pause videos ---
       const unmuteFailures = [];
       for (const record of muteRecords) {
         try {
@@ -836,39 +833,23 @@ document.addEventListener('DOMContentLoaded', async () => {
           unmuteFailures.push(record.id);
         }
       }
+      await pauseVideos(matchingTabs);
 
-      // Prepare status message
+      // --- Phase 6: Status message ---
       let message = moveErrors.length > 0
         ? `Extracted ${matchingTabs.length - moveErrors.length}/${matchingTabs.length} tabs (${moveErrors.length} failed)`
         : `Extracted ${matchingTabs.length} tabs from ${currentDomain}`;
-
       if (unmuteFailures.length > 0) {
         message += ` • Warning: Could not restore sound for ${unmuteFailures.length} tabs.`;
       }
-
-      // Show status BEFORE the final move which closes the popup
       showStatus(message, unmuteFailures.length > 0 || moveErrors.length > 0);
-
       if (moveErrors.length > 0 || unmuteFailures.length > 0) {
         console.warn('Extraction completed with issues:', { moveErrors, unmuteFailures });
       }
 
-      // Finally move the active tab if it wasn't the first one moved
-      // NOTE: This will likely close the popup immediately.
-      if (activeTabId !== firstTabToMove.id) {
-        try {
-          await browser.tabs.move(activeTabId, { windowId: newWindow.id, index: -1 });
-          // Ensure it's active in the new window
-          await browser.tabs.update(activeTabId, { active: true });
-        } catch (err) {
-          console.warn('Failed to move active tab:', err);
-        }
-      }
-
-      // Attempt to focus the new window (popup might already be closed)
+      // --- Phase 7: Focus the new window now that everything is assembled ---
       try {
         await browser.windows.update(newWindow.id, { focused: true });
-        await pauseVideos(matchingTabs);
       } catch (err) {
         // Ignore if popup already closed
       }
