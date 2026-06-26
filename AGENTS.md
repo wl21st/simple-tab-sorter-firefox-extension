@@ -59,6 +59,11 @@ npm test tests/popup.test.js  # Single test file
 - Options page validates token by listing 1 file via Google Drive API before enabling upload
 - Token refresh requires a backend (not implemented client-side)
 
+### Version & Changelog (consolidated)
+- **Version source of truth**: `manifest.json` only. UI reads it dynamically via `chrome.runtime.getManifest().version` in both `popup.js:643` and `options.js:255`.
+- **Package.json version**: Should match `manifest.json` manually when bumping (used by npm scripts).
+- **Changelog data**: Defined once as a `changelogData` array in `popup.js:649`. Rendered dynamically into `#changelog-content` in the About modal. `CHANGELOG.md` is the canonical markdown changelog; the JS array must be kept in sync when adding new entries.
+
 ## What Agents Commonly Miss
 1. `package.sh` is incomplete (missing 3 files) — verify before shipping
 2. `background.js` has no DOM — cannot reference `document`, `window`, etc.

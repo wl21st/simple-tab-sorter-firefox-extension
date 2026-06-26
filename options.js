@@ -272,6 +272,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // Set version from manifest
+  const manifest = chrome.runtime.getManifest();
+  const optionsVersionEl = document.getElementById('options-version');
+  if (optionsVersionEl) optionsVersionEl.textContent = `v${manifest.version}`;
+
   // Initial check
   console.log('Checking initial auth status...');
   await checkAuthStatus();
