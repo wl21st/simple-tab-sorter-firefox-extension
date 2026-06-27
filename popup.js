@@ -639,6 +639,98 @@ document.addEventListener('DOMContentLoaded', async () => {
     removeDuplicates().catch(err => showStatus('Error: ' + err.message, true));
   });
 
+  // --- Set version from manifest ---
+  const manifest = chrome.runtime.getManifest();
+  document.getElementById('version-text').textContent = `v${manifest.version}`;
+  document.getElementById('about-version').textContent = `Simple Tab Manager v${manifest.version}`;
+
+  // --- Changelog data ---
+  const changelogData = [
+    { version: '3.2.0', changes: [
+      'Renamed "Extract Same Domain" to "Extract Same Host". Now matches by exact hostname (case-insensitive) instead of guessing a "base domain".',
+      'Removed domain-guessing heuristics entirely — no more brand TLD lists or multi-part TLD guessing.',
+    ]},
+    { version: '3.1.5', changes: [
+      'Moved Extract Domain operation to background service worker for reliability (popup no longer closes mid-operation).',
+    ]},
+    { version: '3.1.1', changes: [
+      'Fixed cross-window tab extraction in Firefox to work around an API limitation by grouping bulk tab moves by their original window ID.',
+      'Applied the same workaround for merging windows to ensure all tabs are correctly merged.',
+    ]},
+    { version: '3.1', changes: [
+      'Made "All Windows" the default scope for the Filter &amp; Extract feature.',
+      'Fixed "Extract to New Window" logic to safely defer moving the active tab, preventing premature popup closures.',
+    ]},
+    { version: '3.0', changes: [
+      'Redesigned toolbar icon: three stacked browser tabs (ear+body silhouette) with a bidirectional sort arrow — clearly communicates the extension&#39;s purpose at all sizes.',
+    ]},
+    { version: '2.9', changes: [
+      'Redesigned extension icon with a modern browser-tab motif, blue gradient background, and sort-arrow accent.',
+      'Renamed <strong>"Remove Duplicates (All Windows)"</strong> label to <strong>"Remove Duplicates"</strong> for brevity.',
+    ]},
+    { version: '2.8', changes: [
+      'Renamed <strong>"Extract Same Domain to New Window"</strong> to <strong>"Extract Same Domain"</strong> for brevity.',
+    ]},
+    { version: '2.7', changes: [
+      'Removed <strong>Remove Duplicates (Current Window)</strong> button; all-windows dedup already covered this.',
+    ]},
+    { version: '2.6', changes: [
+      'Added <strong>Filter &amp; Extract Tabs</strong> section: keyword search (matches title + URL), scope toggle (This Window / All Windows), optional site filter, live match count badge, and extract-to-new-window button.',
+    ]},
+    { version: '2.5', changes: [
+      'Implemented robust audio restoration with array recording and safe tab switching.',
+      'Optimized tab movement using batch operations for faster extraction.',
+      'Improved reliability and error reporting for extraction process.',
+    ]},
+    { version: '2.0', changes: [
+      'Added detailed Google Drive token acquisition and refresh guidelines in Settings.',
+      'Improved token management UX with color-coded instruction boxes and validation tips.',
+    ]},
+    { version: '1.9', changes: [
+      'Added step-by-step guidance in Settings for obtaining temporary (OAuth2 Playground) vs. recommended (Google Cloud Project) Google Drive tokens.',
+      'Enhanced settings interface with visual direct links and inline configurations.',
+    ]},
+    { version: '1.8', changes: [
+      'Added Google Drive integration to save tabs directly as CSV files.',
+      'Implemented manual OAuth2 token authentication, dynamic token validation, and connection testing in settings.',
+      'Added CSV export including Tab Open Time and Export Time metadata.',
+    ]},
+    { version: '1.5', changes: [
+      'Enhanced "Extract Same Domain" to search and extract tabs from all windows, not just current window',
+    ]},
+    { version: '1.4', changes: [
+      'Fixed "Extract Same Domain" to use active tab&#39;s domain instead of most frequent domain',
+      'Eliminated blank tab creation when extracting tabs to new window',
+      'Added missing "windows" permission for reliable window operations',
+    ]},
+    { version: '1.3', changes: [
+      'Enhanced duplicate removal with per-URL breakdown in status feedback',
+    ]},
+    { version: '1.2', changes: [
+      'Added remove duplicates in current/all windows',
+    ]},
+    { version: '1.1', changes: [
+      'Renamed to <strong>Simple Tab Manager</strong> to avoid naming conflicts',
+      'Added auto-pause for Bilibili/YouTube when merging or extracting windows',
+    ]},
+    { version: '1.0', changes: [
+      'Initial release with sort, merge, and extract features',
+    ]},
+  ];
+
+  function renderChangelog() {
+    const container = document.getElementById('changelog-content');
+    container.innerHTML = changelogData.map(entry => `
+      <div class="changelog-item">
+        <span class="changelog-version">v${entry.version}</span> —
+        <ul style="margin: 4px 0 0 16px; padding: 0;">
+          ${entry.changes.map(c => `<li>${c}</li>`).join('')}
+        </ul>
+      </div>
+    `).join('');
+  }
+  renderChangelog();
+
   // --- About Modal ---
   document.getElementById('btn-about').addEventListener('click', () => {
     aboutModal.classList.add('show');
