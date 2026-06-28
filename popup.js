@@ -84,6 +84,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   filterKeywordEl.addEventListener('input', updateFilterCount);
   filterSiteEl.addEventListener('input', updateFilterCount);
 
+  // Press Enter in either filter input to extract matching tabs
+  function onFilterEnter(e) {
+    if (e.key === 'Enter' && !btnFilterExtract.disabled) {
+      btnFilterExtract.click();
+    }
+  }
+  filterKeywordEl.addEventListener('keydown', onFilterEnter);
+  filterSiteEl.addEventListener('keydown', onFilterEnter);
+
   /** Returns tabs that match current keyword + site filters */
   async function getFilteredTabs() {
     const keyword = filterKeywordEl.value.trim().toLowerCase();
@@ -202,28 +211,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     return csvContent;
   }
 
-  // Helper to estimate tab open time from tab properties
-  function getTabOpenTime(tab) {
-    // Chrome doesn't provide exact open time, but we can estimate based on:
-    // - Session data (if available)
-    // - Tab creation (not directly available)
-    // We'll return a placeholder indicating when this data was last updated
-    // In a real scenario, you'd need to track this with a content script or service worker
-    
-    // Check if we have stored open time for this tab
-    const storedTime = sessionStorage.getItem(`tab-open-${tab.id}`);
-    if (storedTime) {
-      return storedTime;
-    }
-    
-    // If no stored time, return "Unknown" as Chrome doesn't expose exact open time
-    return 'Unknown';
-  }
-
-  function escapeCSVField(field) {
-    return String(field).replace(/"/g, '""');
-  }
-
   // Display CSV in modal
   async function displayCSVModal() {
     try {
@@ -242,6 +229,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       showStatus('Error generating CSV: ' + err.message, true);
     }
+  }
+
+  function escapeCSVField(field) {
+    return String(field).replace(/"/g, '""');
   }
 
   // Download CSV file
@@ -279,29 +270,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         throw new Error('Not authenticated. Please open Settings to connect your Google account.');
       }
 
-      // Check if token might be expired and refresh if we have refresh token
       if (googleRefreshToken) {
-        // Try to validate token first
         try {
           const testResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: { Authorization: `Bearer ${googleAuthToken}` }
           });
           
           if (testResponse.status === 401) {
-            // Token expired, try to refresh
-            console.log('Access token expired, attempting refresh...');
             const newToken = await refreshGoogleToken(googleRefreshToken);
-            if (newToken) {
-              return newToken;
-            }
+            if (newToken) return newToken;
           }
         } catch (err) {
-          console.log('Token validation check failed:', err.message);
-          // If check fails, try refresh anyway
           const newToken = await refreshGoogleToken(googleRefreshToken);
-          if (newToken) {
-            return newToken;
-          }
+          if (newToken) return newToken;
         }
       }
       
@@ -311,33 +292,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Refresh access token using refresh token
   async function refreshGoogleToken(refreshToken) {
-    try {
-      console.log('Refreshing access token...');
-      
-      // Note: This requires a backend or proxy to handle token refresh
-      // For now, we'll just return null and let user manually refresh
-      // In production, you'd call your backend like:
-      // const response = await fetch('https://your-backend.com/refresh-token', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ refreshToken })
-      // });
-      
-      console.log('Token refresh requires backend (not implemented in client-only extension)');
-      return null;
-    } catch (err) {
-      console.error('Token refresh failed:', err);
-      return null;
-    }
+    return null;
   }
 
-  // Find or create folder in Google Drive
   async function findOrCreateFolder(token, folderName, parentId = 'root') {
     if (!folderName) return 'root';
-
-    // Search for existing folder
     const searchQuery = `name='${folderName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
     const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(searchQuery)}&spaces=drive&pageSize=1&fields=files(id)`;
     
@@ -354,7 +314,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.error('Search error:', err);
     }
 
-    // Create new folder if not found
     const metadata = {
       name: folderName,
       mimeType: 'application/vnd.google-apps.folder',
@@ -382,7 +341,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Upload CSV to Google Drive
   async function uploadToGoogleDrive() {
     const gdriveStatusEl = document.getElementById('gdrive-status');
     const uploadBtn = document.getElementById('btn-upload-gdrive');
@@ -398,7 +356,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       gdriveStatusEl.textContent = 'Preparing CSV...';
       const tabs = await browser.tabs.query({});
       
-      // Get tab open times from service worker
       const tabOpenTimes = await new Promise((resolve) => {
         browser.runtime.sendMessage({ action: 'getTabOpenTimes' }).then((response) => {
           resolve(response || {});
@@ -407,12 +364,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       const csvContent = generateCSV(tabs, tabOpenTimes);
 
-      if (folderName) {
-        gdriveStatusEl.textContent = `Finding or creating folder "${folderName}"...`;
-        var folderId = await findOrCreateFolder(token, folderName);
-      } else {
-        var folderId = 'root';
-      }
+      var folderId = folderName ? await findOrCreateFolder(token, folderName) : 'root';
 
       gdriveStatusEl.textContent = 'Uploading file...';
       const metadata = {
@@ -446,28 +398,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       uploadBtn.disabled = false;
     } finally {
       uploadBtn.disabled = false;
-    }
-  }
-
-  // Pause videos on Bilibili or YouTube tabs to prevent auto-play
-  async function pauseVideos(tabs) {
-    const videoSites = ['bilibili.com', 'youtube.com'];
-    const targetTabs = tabs.filter(tab => tab.url && videoSites.some(site => tab.url.includes(site)));
-    if (targetTabs.length === 0) return;
-
-    try {
-      await Promise.all(
-        targetTabs.map(tab =>
-          browser.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: () => {
-              document.querySelectorAll('video').forEach(v => v.pause());
-            }
-          })
-        )
-      );
-    } catch (err) {
-      // Silently ignore injection errors (e.g., restricted pages)
     }
   }
 
@@ -534,7 +464,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await browser.tabs.remove(toRemove);
 
-    // Build summary: e.g. "Removed 3 duplicates (2× youtube.com/..., 1× example.com)"
     const dupEntries = [...dupCountByUrl.entries()];
     const summarize = (url) => {
       try {
@@ -557,6 +486,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     removeDuplicates().catch(err => showStatus('Error: ' + err.message, true));
   });
 
+  // --- Set version from manifest ---
+  const manifest = chrome.runtime.getManifest();
+  document.getElementById('version-text').textContent = `v${manifest.version}`;
+  document.getElementById('about-version').textContent = `Simple Tab Manager v${manifest.version}`;
+
+  // --- Changelog data ---
+  const changelogData = [
+    { version: '3.2.0', changes: [
+      'Renamed "Extract Same Domain" to "Extract Same Host". Now matches by exact hostname (case-insensitive).',
+      'Fixed cross-window operations ("Filter & Extract", "Merge Windows") getting cancelled prematurely.',
+    ]},
+    { version: '3.1.5', changes: [
+      'Moved Extract Domain operation to background service worker for reliability.',
+    ]}
+  ];
+
+  function renderChangelog() {
+    const container = document.getElementById('changelog-content');
+    container.innerHTML = changelogData.map(entry => `
+      <div class="changelog-item">
+        <span class="changelog-version">v${entry.version}</span> —
+        <ul style="margin: 4px 0 0 16px; padding: 0;">
+          ${entry.changes.map(c => `<li>${c}</li>`).join('')}
+        </ul>
+      </div>
+    `).join('');
+  }
+  renderChangelog();
+
   // --- About Modal ---
   document.getElementById('btn-about').addEventListener('click', () => {
     aboutModal.classList.add('show');
@@ -569,15 +527,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-export-csv').addEventListener('click', () => {
     displayCSVModal();
   });
-
   document.getElementById('btn-close-csv').addEventListener('click', () => {
     csvModal.classList.remove('show');
   });
-
   document.getElementById('btn-copy-csv').addEventListener('click', () => {
     copyToClipboard();
   });
-
   document.getElementById('btn-download-csv').addEventListener('click', () => {
     const csvContent = document.getElementById('csv-content').value;
     downloadCSV(csvContent);
@@ -586,16 +541,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- Google Drive Modal ---
   document.getElementById('btn-save-google-drive').addEventListener('click', async () => {
-    // Check if user is authenticated
     const { googleAuthToken } = await browser.storage.local.get('googleAuthToken');
-    
     if (!googleAuthToken) {
       showStatus('Please go to Settings and connect your Google Drive first.', true);
       return;
     }
-    
     document.getElementById('folder-name-input').value = '';
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5); // Format: 2024-06-04T14-30-15
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
     document.getElementById('file-name-input').value = `tabs-${timestamp}.csv`;
     document.getElementById('gdrive-status').textContent = '';
     googleDriveModal.classList.add('show');
@@ -611,98 +563,78 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- Helper: Extract domain from hostname (handles subdomains) ---
   function extractBaseDomain(hostname) {
-    // Remove www. prefix if present
     let domain = hostname.toLowerCase().replace(/^www\./, '');
-    
-    // For common TLDs, get the base domain
+    if (!domain || !domain.includes('.')) return domain;
     const parts = domain.split('.');
-    
-    // If it looks like a subdomain (has 3+ parts), try to return base domain
     if (parts.length >= 3) {
-      // Common multi-part TLDs
       const multiPartTLDs = [
-        'co.uk', 'org.uk', 'net.uk', 'me.uk',
-        'com.au', 'net.au', 'org.au',
-        'com.br', 'net.br',
-        'com.cn', 'net.cn', 'org.cn',
-        'com.jp', 'co.jp',
-        'com.mx',
-        'com.sg',
-        'com.tw'
+        'co.uk', 'org.uk', 'net.uk', 'me.uk', 'com.au', 'net.au', 'org.au',
+        'com.br', 'net.br', 'com.cn', 'net.cn', 'org.cn',
+        'com.jp', 'co.jp', 'ne.jp', 'or.jp', 'com.mx', 'com.sg', 'com.tw',
+        'co.kr', 'or.kr', 'co.nz', 'net.nz', 'org.nz',
+        'co.in', 'net.in', 'org.in', 'com.hk', 'org.hk', 'co.za'
       ];
-      
+      const brandTLDs = [
+        'sap', 'google', 'amazon', 'microsoft', 'apple', 'aws',
+        'ibm', 'oracle', 'cisco', 'samsung', 'sony', 'toyota',
+        'bmw', 'audi', 'honda', 'intel', 'dell', 'hp',
+        'siemens', 'bosch', 'philips', 'nokia', 'ericsson',
+        'alibaba', 'baidu', 'tencent', 'huawei', 'xiaomi'
+      ];
+      const sharedHostingSuffixes = [
+        'github.io', 'gitlab.io', 'netlify.app', 'vercel.app',
+        'herokuapp.com', 'firebaseapp.com', 'web.app',
+        'blogspot.com', 'blogspot.co.uk', 'blogspot.com.au',
+        'wordpress.com', 'tumblr.com', 'medium.com',
+        'azurewebsites.net', 'cloudfront.net', 'amazonaws.com',
+        'pages.dev', 'workers.dev', 'r2.dev', 'fly.dev', 'deno.dev',
+        'surge.sh', 'now.sh', 'appspot.com', 'cloudfunctions.net',
+        'azureedge.net', 'trafficmanager.net', 's3.amazonaws.com'
+      ];
+      const tld = parts[parts.length - 1];
       const lastTwo = parts.slice(-2).join('.');
-      if (multiPartTLDs.includes(lastTwo) && parts.length >= 3) {
-        // Return last 3 parts (e.g., example.co.uk)
-        return parts.slice(-3).join('.');
-      }
+      const lastThree = parts.slice(-3).join('.');
       
-      // Return last 2 parts (e.g., google.com from mail.google.com)
+      if (brandTLDs.includes(tld)) return parts.slice(-3).join('.');
+      if (multiPartTLDs.includes(lastTwo)) return parts.slice(-3).join('.');
+      if (sharedHostingSuffixes.includes(lastTwo) || sharedHostingSuffixes.includes(lastThree)) {
+        if (sharedHostingSuffixes.includes(lastTwo)) return parts.slice(-3).join('.');
+        return parts.slice(-4).join('.');
+      }
       return parts.slice(-2).join('.');
     }
-    
     return domain;
   }
 
-  // --- 3. Extract Same Domain ---
+  // --- 3. Extract Same Host ---
   document.getElementById('btn-extract').addEventListener('click', async () => {
     try {
       const currentWindowTabs = await browser.tabs.query({ currentWindow: true });
       const activeTab = currentWindowTabs.find(tab => tab.active);
-      
+
       if (!activeTab || !activeTab.url) {
         showStatus('No active tab found.', true);
         return;
       }
 
-      let currentDomain = '';
-      try {
-        const url = new URL(activeTab.url);
-        currentDomain = extractBaseDomain(url.hostname);
-      } catch (e) {
-        showStatus('Invalid URL in active tab.', true);
-        return;
-      }
+      showStatus('Extracting...');
 
-      // Find all tabs matching the current tab's domain across ALL windows
-      const allTabs = await browser.tabs.query({});
-      const matchingTabs = [];
-      const failedTabs = [];
-      
-      for (const tab of allTabs) {
-        if (!tab.url) continue;
-        try {
-          const url = new URL(tab.url);
-          const tabDomain = extractBaseDomain(url.hostname);
-          if (tabDomain === currentDomain) {
-            matchingTabs.push(tab);
-          }
-        } catch (e) {
-          // Track failed tabs for debugging
-          failedTabs.push(tab.id);
-        }
-      }
-
-      if (matchingTabs.length < 2) {
-        showStatus('No other tabs with same domain found.', true);
-        return;
-      }
-
-      const activeTabId = activeTab.id;
-      const otherTabs = matchingTabs.filter(t => t.id !== activeTabId);
-      
-      // Delegate extraction to background script because creating a new window
-      // immediately closes the popup and terminates execution!
-      const tabIds = matchingTabs.map(t => t.id);
-      
-      await browser.runtime.sendMessage({
-        action: 'extractTabs',
-        tabIds: tabIds,
-        activeTabId: activeTabId
+      // Delegate to background script (survives popup close)
+      const result = await browser.runtime.sendMessage({
+        action: 'extractDomain',
+        activeTabId: activeTab.id,
+        activeTabUrl: activeTab.url
       });
+
+      if (result && result.success) {
+        showStatus(result.message);
+      } else if (result && result.error) {
+        showStatus(result.error, true);
+      } else if (result && result.message) {
+        showStatus(result.message, true);
+      }
     } catch (err) {
-      showStatus('Error extracting tabs: ' + err.message, true);
-      console.error('Extract error details:', err);
+      console.log('Extract message sent (popup may close):', err.message);
     }
   });
 });

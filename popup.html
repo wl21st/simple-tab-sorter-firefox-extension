@@ -81,7 +81,7 @@
       text-decoration: underline;
     }
     .modal-overlay {
-      position: absolute;
+      position: fixed;
       top: 0;
       left: 0;
       width: 100%;
@@ -93,6 +93,7 @@
       padding: 16px;
       box-sizing: border-box;
       z-index: 10;
+      overflow-y: auto;
     }
     .modal-overlay.show {
       display: flex;
@@ -362,7 +363,7 @@
   
   <button id="btn-extract">
     <span class="icon">🔗</span>
-    <span>Extract Same Domain</span>
+    <span>Extract Same Host</span>
   </button>
 
   <button id="btn-dedup-all">
@@ -383,7 +384,7 @@
   <div id="status" class="status"></div>
 
    <div class="footer">
-      <span id="version-text">v3.1.1</span>
+      <span id="version-text">v3.2.0</span>
      <span class="about-link" id="btn-settings">Settings</span>
      <span class="about-link" id="btn-about">About</span>
    </div>
@@ -393,122 +394,9 @@
       <span class="modal-title">About</span>
       <button class="modal-close" id="btn-close-about">&times;</button>
     </div>
-    <div class="version" id="about-version">Simple Tab Manager v3.1.1</div>
+    <div class="version" id="about-version">Simple Tab Manager v3.2.0</div>
     <div class="changelog-title">Changelog</div>
-    <div class="changelog-item">
-      <span class="changelog-version">v3.1.1</span> —
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Fixed cross-window tab extraction in Firefox to work around an API limitation by grouping bulk tab moves by their original window ID.</li>
-        <li>Applied the same workaround for merging windows to ensure all tabs are correctly merged.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v3.1</span> —
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Made "All Windows" the default scope for the Filter & Extract feature.</li>
-        <li>Fixed "Extract to New Window" logic to safely defer moving the active tab, preventing premature popup closures.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v3.0</span> —
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Redesigned toolbar icon: three stacked browser tabs (ear+body silhouette) with a bidirectional sort arrow — clearly communicates the extension's purpose at all sizes.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v2.9</span> —
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Redesigned extension icon with a modern browser-tab motif, blue gradient background, and sort-arrow accent.</li>
-        <li>Renamed <strong>"Remove Duplicates (All Windows)"</strong> label to <strong>"Remove Duplicates"</strong> for brevity.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v2.8</span> —
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Renamed <strong>"Extract Same Domain to New Window"</strong> to <strong>"Extract Same Domain"</strong> for brevity.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v2.7</span> —
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Removed <strong>Remove Duplicates (Current Window)</strong> button; all-windows dedup already covered this.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v2.6</span> — 
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Added <strong>Filter &amp; Extract Tabs</strong> section: keyword search (matches title + URL), scope toggle (This Window / All Windows), optional site filter, live match count badge, and extract-to-new-window button.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v2.5</span> — 
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Implemented robust audio restoration with array recording and safe tab switching.</li>
-        <li>Optimized tab movement using batch operations for faster extraction.</li>
-        <li>Improved reliability and error reporting for extraction process.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v2.0</span> — 
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Added detailed Google Drive token acquisition and refresh guidelines in Settings.</li>
-        <li>Improved token management UX with color-coded instruction boxes and validation tips.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v1.9</span> — 
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Added step-by-step guidance in Settings for obtaining temporary (OAuth2 Playground) vs. recommended (Google Cloud Project) Google Drive tokens.</li>
-        <li>Enhanced settings interface with visual direct links and inline configurations.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v1.8</span> — 
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Added Google Drive integration to save tabs directly as CSV files.</li>
-        <li>Implemented manual OAuth2 token authentication, dynamic token validation, and connection testing in settings.</li>
-        <li>Added CSV export including Tab Open Time and Export Time metadata.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v1.5</span> — 
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Enhanced "Extract Same Domain" to search and extract tabs from all windows, not just current window</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v1.4</span> — 
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Fixed "Extract Same Domain" to use active tab's domain instead of most frequent domain</li>
-        <li>Eliminated blank tab creation when extracting tabs to new window</li>
-        <li>Added missing "windows" permission for reliable window operations</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v1.3</span> — 
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Enhanced duplicate removal with per-URL breakdown in status feedback</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v1.2</span> — 
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Added remove duplicates in current/all windows</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v1.1</span> — 
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Renamed to <strong>Simple Tab Manager</strong> to avoid naming conflicts</li>
-        <li>Added auto-pause for Bilibili/YouTube when merging or extracting windows</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <span class="changelog-version">v1.0</span> — 
-      <ul style="margin: 4px 0 0 16px; padding: 0;">
-        <li>Initial release with sort, merge, and extract features</li>
-      </ul>
-    </div>
+    <div id="changelog-content"></div>
   </div>
   
   <div id="csv-modal" class="modal-overlay">

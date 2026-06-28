@@ -918,3 +918,19 @@ describe('Filter Tabs Feature', () => {
     });
   });
 });
+
+describe('Smoke Tests', () => {
+  test('popup.js parses without syntax errors', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const code = fs.readFileSync(path.resolve(__dirname, '../popup.js'), 'utf8');
+    expect(() => new Function(code)).not.toThrow();
+  });
+
+  test('background.js parses without syntax errors', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const code = fs.readFileSync(path.resolve(__dirname, '../background.js'), 'utf8');
+    expect(() => new Function(code)).not.toThrow();
+  });
+});

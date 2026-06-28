@@ -5,11 +5,32 @@ All notable changes to Tab Manager will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.2.0] - 2026-06-23
+## [3.2.0] - 2026-06-24
+
+### Changed
+- **Extract Same Host**: Renamed from "Extract Same Domain". Now matches by exact hostname (case-insensitive) instead of guessing a "base domain" via heuristics. `portal.hyperspace.tools.sap` and `github.tools.sap` are correctly treated as different hosts.
 
 ### Fixed
-- **Popup Lifecycle Bug**: Fixed a persistent issue where multi-step cross-window operations ("Extract Same Domain", "Filter & Extract", and "Merge All Windows") would only process the first tab or window. This was caused by the browser instantly terminating the `popup.js` script when a new window was created or when remote windows were closed (triggering an OS focus shift).
+- **Popup Lifecycle Bug**: Fixed a persistent issue where multi-step cross-window operations ("Filter & Extract", and "Merge All Windows") would only process the first tab or window. This was caused by the browser instantly terminating the `popup.js` script when a new window was created or when remote windows were closed (triggering an OS focus shift).
 - **Background Delegation**: Completely offloaded window creation and all cross-window tab movements to the background service worker (`background.js`). Operations are now fully immune to popup focus-loss termination.
+
+## [3.1.5] - 2026-06-24
+
+### Fixed
+- **Extract Same Domain**: Moved all tab extraction logic from popup.js into background.js service worker. The popup now sends a message and the background script does the heavy lifting asynchronously — survives popup close on both Chrome and Firefox. Fixes the "extra windows" bug caused by the popup closing mid-operation.
+
+## [3.1.4] - 2026-06-24
+
+### Refactored
+- **Extract Same Domain**: Rewrote move logic to collect all tab IDs upfront before touching anything. Eliminates the entire class of "random tab left behind" bugs caused by on-the-fly active-tab special-casing. New flow: collect → mute → create window → move all remaining → restore mutes → focus.
+
+## [3.1.3] - 2026-06-24
+
+### Fixed
+- **Extract Same Domain**: The newly created window now receives focus after all tabs are assembled, so the user is taken directly to it instead of staying on the original window.
+
+### Added
+- **Filter & Extract**: Pressing **Enter** in either the keyword or site-filter input now triggers "Extract Matching Tabs" instantly — no need to click the button.
 
 ## [3.1.1] - 2026-06-22
 
@@ -29,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Toolbar icon**: Redesigned for clarity at small sizes — three stacked browser tab shapes (ear+body silhouette) in a depth fan with a bidirectional sort arrow on the right. Clearly communicates "tab sorter" even at 16×16px.
+
 ## [2.9] - 2026-06-11
 
 ### Changed
@@ -159,4 +181,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Export tabs to CSV (view/download modes)
 - Extract same domain tabs
 - Sort tabs by various criteria
-
