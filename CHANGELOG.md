@@ -9,7 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Extract Same Host**: Renamed from "Extract Same Domain". Now matches by exact hostname (case-insensitive) instead of guessing a "base domain" via heuristics. `portal.hyperspace.tools.sap` and `github.tools.sap` are correctly treated as different hosts.
-- Removed `extractBaseDomain` from the extract feature entirely — no more brand TLD lists, shared-hosting lists, or multi-part TLD guessing.
+
+### Fixed
+- **Popup Lifecycle Bug**: Fixed a persistent issue where multi-step cross-window operations ("Filter & Extract", and "Merge All Windows") would only process the first tab or window. This was caused by the browser instantly terminating the `popup.js` script when a new window was created or when remote windows were closed (triggering an OS focus shift).
+- **Background Delegation**: Completely offloaded window creation and all cross-window tab movements to the background service worker (`background.js`). Operations are now fully immune to popup focus-loss termination.
 
 ## [3.1.5] - 2026-06-24
 
@@ -20,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Refactored
 - **Extract Same Domain**: Rewrote move logic to collect all tab IDs upfront before touching anything. Eliminates the entire class of "random tab left behind" bugs caused by on-the-fly active-tab special-casing. New flow: collect → mute → create window → move all remaining → restore mutes → focus.
+
 ## [3.1.3] - 2026-06-24
 
 ### Fixed
@@ -46,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Toolbar icon**: Redesigned for clarity at small sizes — three stacked browser tab shapes (ear+body silhouette) in a depth fan with a bidirectional sort arrow on the right. Clearly communicates "tab sorter" even at 16×16px.
+
 ## [2.9] - 2026-06-11
 
 ### Changed
@@ -176,4 +181,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Export tabs to CSV (view/download modes)
 - Extract same domain tabs
 - Sort tabs by various criteria
-

@@ -149,86 +149,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      // Auto-play protection — mute video tabs before moving
-      const videoSites = ['bilibili.com', 'youtube.com'];
-      const videoTabs  = matched.filter(t => t.url && videoSites.some(s => t.url.includes(s)));
-      const muteRecords = videoTabs.map(t => ({ id: t.id, wasMuted: t.mutedInfo?.muted || false }));
-      for (const r of muteRecords) {
-        try { await browser.tabs.update(r.id, { muted: true }); } catch { /* ignore */ }
-      }
-
-      // Find the active tab to defer moving it (prevents popup from closing prematurely)
+      // Delegate extraction to background script because creating a new window
+      // immediately closes the popup and terminates execution!
       const currentWindowTabs = await browser.tabs.query({ currentWindow: true, active: true });
       const currentActiveTab = currentWindowTabs[0];
-
-      let activeMatchedTab = null;
-      let otherMatchedTabs = [];
-      for (const t of matched) {
-        if (currentActiveTab && t.id === currentActiveTab.id) {
-          activeMatchedTab = t;
-        } else {
-          otherMatchedTabs.push(t);
-        }
+      
+      // Determine if the active tab is one of the matched tabs
+      const isActiveMatched = currentActiveTab && matched.some(t => t.id === currentActiveTab.id);
+      const activeTabIdToPass = isActiveMatched ? currentActiveTab.id : null;
+      
+      const tabIds = matched.map(t => t.id);
+      
+      await browser.runtime.sendMessage({
+        action: 'extractTabs',
+        tabIds: tabIds,
+        activeTabId: activeTabIdToPass
+      });
+      
+      // If we are moving the active tab, the popup will close automatically.
+      // If we aren't moving it, we can reset the count here.
+      if (!isActiveMatched) {
+        await updateFilterCount();
       }
-
-      // Create new window with the first background tab (if any)
-      const firstTabToMove = otherMatchedTabs.length > 0 ? otherMatchedTabs[0] : activeMatchedTab;
-      let newWin;
-      try {
-        newWin = await browser.windows.create({ tabId: firstTabToMove.id, focused: false });
-      } catch (err) {
-        // Restore mute on failure
-        for (const r of muteRecords) {
-          try { await browser.tabs.update(r.id, { muted: r.wasMuted }); } catch { /* ignore */ }
-        }
-        throw err;
-      }
-
-      // Move the rest of the non-active tabs
-      const restToMove = otherMatchedTabs.filter(t => t.id !== firstTabToMove.id);
-      if (restToMove.length > 0) {
-        // WORKAROUND: Firefox has a known bug where passing an array of tabIds from 
-        // different original windows to browser.tabs.move() will silently fail to move 
-        // tabs outside of the first tab's original window. 
-        // Group tabs by their original windowId and move them in batches.
-        const groupedByWindow = {};
-        for (const t of restToMove) {
-          if (!groupedByWindow[t.windowId]) groupedByWindow[t.windowId] = [];
-          groupedByWindow[t.windowId].push(t.id);
-        }
-        for (const winId in groupedByWindow) {
-          try {
-            await browser.tabs.move(groupedByWindow[winId], { windowId: newWin.id, index: -1 });
-          } catch (err) {
-            console.warn(`Failed to move filtered tabs from window ${winId}:`, err);
-          }
-        }
-      }
-
-      // Pause videos, then restore mute states
-      await pauseVideos(matched);
-      for (const r of muteRecords) {
-        try { await browser.tabs.update(r.id, { muted: r.wasMuted }); } catch { /* ignore */ }
-      }
-
-      const keyword = filterKeywordEl.value.trim();
-      showStatus(`Extracted ${matched.length} tab${matched.length !== 1 ? 's' : ''} matching "${keyword || '(all)'}" to new window.`);
-
-      // Finally, move the active tab if it's part of the match (this will close the popup)
-      if (activeMatchedTab && activeMatchedTab.id !== firstTabToMove.id) {
-        try {
-          await browser.tabs.move(activeMatchedTab.id, { windowId: newWin.id, index: -1 });
-          await browser.tabs.update(activeMatchedTab.id, { active: true });
-        } catch (err) {
-          console.warn('Failed to move active tab:', err);
-        }
-      }
-
-      // Focus new window (may close popup if it survived this far)
-      try { await browser.windows.update(newWin.id, { focused: true }); } catch { /* ignore */ }
-
-      // Reset count (only executes if popup is still open)
-      await updateFilterCount();
     } catch (err) {
       showStatus('Error extracting filtered tabs: ' + err.message, true);
     }
@@ -269,28 +211,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     return csvContent;
   }
 
-  // Helper to estimate tab open time from tab properties
-  function getTabOpenTime(tab) {
-    // Chrome doesn't provide exact open time, but we can estimate based on:
-    // - Session data (if available)
-    // - Tab creation (not directly available)
-    // We'll return a placeholder indicating when this data was last updated
-    // In a real scenario, you'd need to track this with a content script or service worker
-    
-    // Check if we have stored open time for this tab
-    const storedTime = sessionStorage.getItem(`tab-open-${tab.id}`);
-    if (storedTime) {
-      return storedTime;
-    }
-    
-    // If no stored time, return "Unknown" as Chrome doesn't expose exact open time
-    return 'Unknown';
-  }
-
-  function escapeCSVField(field) {
-    return String(field).replace(/"/g, '""');
-  }
-
   // Display CSV in modal
   async function displayCSVModal() {
     try {
@@ -309,6 +229,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       showStatus('Error generating CSV: ' + err.message, true);
     }
+  }
+
+  function escapeCSVField(field) {
+    return String(field).replace(/"/g, '""');
   }
 
   // Download CSV file
@@ -346,29 +270,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         throw new Error('Not authenticated. Please open Settings to connect your Google account.');
       }
 
-      // Check if token might be expired and refresh if we have refresh token
       if (googleRefreshToken) {
-        // Try to validate token first
         try {
           const testResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: { Authorization: `Bearer ${googleAuthToken}` }
           });
           
           if (testResponse.status === 401) {
-            // Token expired, try to refresh
-            console.log('Access token expired, attempting refresh...');
             const newToken = await refreshGoogleToken(googleRefreshToken);
-            if (newToken) {
-              return newToken;
-            }
+            if (newToken) return newToken;
           }
         } catch (err) {
-          console.log('Token validation check failed:', err.message);
-          // If check fails, try refresh anyway
           const newToken = await refreshGoogleToken(googleRefreshToken);
-          if (newToken) {
-            return newToken;
-          }
+          if (newToken) return newToken;
         }
       }
       
@@ -378,33 +292,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Refresh access token using refresh token
   async function refreshGoogleToken(refreshToken) {
-    try {
-      console.log('Refreshing access token...');
-      
-      // Note: This requires a backend or proxy to handle token refresh
-      // For now, we'll just return null and let user manually refresh
-      // In production, you'd call your backend like:
-      // const response = await fetch('https://your-backend.com/refresh-token', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ refreshToken })
-      // });
-      
-      console.log('Token refresh requires backend (not implemented in client-only extension)');
-      return null;
-    } catch (err) {
-      console.error('Token refresh failed:', err);
-      return null;
-    }
+    return null;
   }
 
-  // Find or create folder in Google Drive
   async function findOrCreateFolder(token, folderName, parentId = 'root') {
     if (!folderName) return 'root';
-
-    // Search for existing folder
     const searchQuery = `name='${folderName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
     const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(searchQuery)}&spaces=drive&pageSize=1&fields=files(id)`;
     
@@ -421,7 +314,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.error('Search error:', err);
     }
 
-    // Create new folder if not found
     const metadata = {
       name: folderName,
       mimeType: 'application/vnd.google-apps.folder',
@@ -449,7 +341,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Upload CSV to Google Drive
   async function uploadToGoogleDrive() {
     const gdriveStatusEl = document.getElementById('gdrive-status');
     const uploadBtn = document.getElementById('btn-upload-gdrive');
@@ -465,7 +356,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       gdriveStatusEl.textContent = 'Preparing CSV...';
       const tabs = await browser.tabs.query({});
       
-      // Get tab open times from service worker
       const tabOpenTimes = await new Promise((resolve) => {
         browser.runtime.sendMessage({ action: 'getTabOpenTimes' }).then((response) => {
           resolve(response || {});
@@ -474,12 +364,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       const csvContent = generateCSV(tabs, tabOpenTimes);
 
-      if (folderName) {
-        gdriveStatusEl.textContent = `Finding or creating folder "${folderName}"...`;
-        var folderId = await findOrCreateFolder(token, folderName);
-      } else {
-        var folderId = 'root';
-      }
+      var folderId = folderName ? await findOrCreateFolder(token, folderName) : 'root';
 
       gdriveStatusEl.textContent = 'Uploading file...';
       const metadata = {
@@ -516,28 +401,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Pause videos on Bilibili or YouTube tabs to prevent auto-play
-  async function pauseVideos(tabs) {
-    const videoSites = ['bilibili.com', 'youtube.com'];
-    const targetTabs = tabs.filter(tab => tab.url && videoSites.some(site => tab.url.includes(site)));
-    if (targetTabs.length === 0) return;
-
-    try {
-      await Promise.all(
-        targetTabs.map(tab =>
-          browser.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: () => {
-              document.querySelectorAll('video').forEach(v => v.pause());
-            }
-          })
-        )
-      );
-    } catch (err) {
-      // Silently ignore injection errors (e.g., restricted pages)
-    }
-  }
-
   // --- 1. Sort Tabs ---
   document.getElementById('btn-sort').addEventListener('click', async () => {
     try {
@@ -560,27 +423,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // --- 2. Merge All Windows ---
   document.getElementById('btn-merge').addEventListener('click', async () => {
     try {
-      const currentWindow = await browser.windows.getCurrent({ populate: true });
-      const allTabs = await browser.tabs.query({});
-
-      const tabsToMove = allTabs.filter(tab => tab.windowId !== currentWindow.id);
-      await pauseVideos(tabsToMove);
-
-      if (tabsToMove.length > 0) {
-        const groupedByWindow = {};
-        for (const t of tabsToMove) {
-          if (!groupedByWindow[t.windowId]) groupedByWindow[t.windowId] = [];
-          groupedByWindow[t.windowId].push(t.id);
-        }
-        for (const winId in groupedByWindow) {
-          try {
-            await browser.tabs.move(groupedByWindow[winId], { windowId: currentWindow.id, index: -1 });
-          } catch (err) {
-            console.warn(`Failed to merge tabs from window ${winId}:`, err);
-          }
-        }
-      }
-
+      const currentWindow = await browser.windows.getCurrent();
+      await browser.runtime.sendMessage({
+        action: 'mergeWindows',
+        currentWindowId: currentWindow.id
+      });
+      // Assuming it didn't close, show status
       showStatus('All windows merged!');
     } catch (err) {
       showStatus('Error merging windows: ' + err.message, true);
@@ -616,7 +464,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await browser.tabs.remove(toRemove);
 
-    // Build summary: e.g. "Removed 3 duplicates (2× youtube.com/..., 1× example.com)"
     const dupEntries = [...dupCountByUrl.entries()];
     const summarize = (url) => {
       try {
@@ -647,75 +494,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // --- Changelog data ---
   const changelogData = [
     { version: '3.2.0', changes: [
-      'Renamed "Extract Same Domain" to "Extract Same Host". Now matches by exact hostname (case-insensitive) instead of guessing a "base domain".',
-      'Removed domain-guessing heuristics entirely — no more brand TLD lists or multi-part TLD guessing.',
+      'Renamed "Extract Same Domain" to "Extract Same Host". Now matches by exact hostname (case-insensitive).',
+      'Fixed cross-window operations ("Filter & Extract", "Merge Windows") getting cancelled prematurely.',
     ]},
     { version: '3.1.5', changes: [
-      'Moved Extract Domain operation to background service worker for reliability (popup no longer closes mid-operation).',
-    ]},
-    { version: '3.1.1', changes: [
-      'Fixed cross-window tab extraction in Firefox to work around an API limitation by grouping bulk tab moves by their original window ID.',
-      'Applied the same workaround for merging windows to ensure all tabs are correctly merged.',
-    ]},
-    { version: '3.1', changes: [
-      'Made "All Windows" the default scope for the Filter &amp; Extract feature.',
-      'Fixed "Extract to New Window" logic to safely defer moving the active tab, preventing premature popup closures.',
-    ]},
-    { version: '3.0', changes: [
-      'Redesigned toolbar icon: three stacked browser tabs (ear+body silhouette) with a bidirectional sort arrow — clearly communicates the extension&#39;s purpose at all sizes.',
-    ]},
-    { version: '2.9', changes: [
-      'Redesigned extension icon with a modern browser-tab motif, blue gradient background, and sort-arrow accent.',
-      'Renamed <strong>"Remove Duplicates (All Windows)"</strong> label to <strong>"Remove Duplicates"</strong> for brevity.',
-    ]},
-    { version: '2.8', changes: [
-      'Renamed <strong>"Extract Same Domain to New Window"</strong> to <strong>"Extract Same Domain"</strong> for brevity.',
-    ]},
-    { version: '2.7', changes: [
-      'Removed <strong>Remove Duplicates (Current Window)</strong> button; all-windows dedup already covered this.',
-    ]},
-    { version: '2.6', changes: [
-      'Added <strong>Filter &amp; Extract Tabs</strong> section: keyword search (matches title + URL), scope toggle (This Window / All Windows), optional site filter, live match count badge, and extract-to-new-window button.',
-    ]},
-    { version: '2.5', changes: [
-      'Implemented robust audio restoration with array recording and safe tab switching.',
-      'Optimized tab movement using batch operations for faster extraction.',
-      'Improved reliability and error reporting for extraction process.',
-    ]},
-    { version: '2.0', changes: [
-      'Added detailed Google Drive token acquisition and refresh guidelines in Settings.',
-      'Improved token management UX with color-coded instruction boxes and validation tips.',
-    ]},
-    { version: '1.9', changes: [
-      'Added step-by-step guidance in Settings for obtaining temporary (OAuth2 Playground) vs. recommended (Google Cloud Project) Google Drive tokens.',
-      'Enhanced settings interface with visual direct links and inline configurations.',
-    ]},
-    { version: '1.8', changes: [
-      'Added Google Drive integration to save tabs directly as CSV files.',
-      'Implemented manual OAuth2 token authentication, dynamic token validation, and connection testing in settings.',
-      'Added CSV export including Tab Open Time and Export Time metadata.',
-    ]},
-    { version: '1.5', changes: [
-      'Enhanced "Extract Same Domain" to search and extract tabs from all windows, not just current window',
-    ]},
-    { version: '1.4', changes: [
-      'Fixed "Extract Same Domain" to use active tab&#39;s domain instead of most frequent domain',
-      'Eliminated blank tab creation when extracting tabs to new window',
-      'Added missing "windows" permission for reliable window operations',
-    ]},
-    { version: '1.3', changes: [
-      'Enhanced duplicate removal with per-URL breakdown in status feedback',
-    ]},
-    { version: '1.2', changes: [
-      'Added remove duplicates in current/all windows',
-    ]},
-    { version: '1.1', changes: [
-      'Renamed to <strong>Simple Tab Manager</strong> to avoid naming conflicts',
-      'Added auto-pause for Bilibili/YouTube when merging or extracting windows',
-    ]},
-    { version: '1.0', changes: [
-      'Initial release with sort, merge, and extract features',
-    ]},
+      'Moved Extract Domain operation to background service worker for reliability.',
+    ]}
   ];
 
   function renderChangelog() {
@@ -743,15 +527,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-export-csv').addEventListener('click', () => {
     displayCSVModal();
   });
-
   document.getElementById('btn-close-csv').addEventListener('click', () => {
     csvModal.classList.remove('show');
   });
-
   document.getElementById('btn-copy-csv').addEventListener('click', () => {
     copyToClipboard();
   });
-
   document.getElementById('btn-download-csv').addEventListener('click', () => {
     const csvContent = document.getElementById('csv-content').value;
     downloadCSV(csvContent);
@@ -760,16 +541,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- Google Drive Modal ---
   document.getElementById('btn-save-google-drive').addEventListener('click', async () => {
-    // Check if user is authenticated
     const { googleAuthToken } = await browser.storage.local.get('googleAuthToken');
-    
     if (!googleAuthToken) {
       showStatus('Please go to Settings and connect your Google Drive first.', true);
       return;
     }
-    
     document.getElementById('folder-name-input').value = '';
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5); // Format: 2024-06-04T14-30-15
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
     document.getElementById('file-name-input').value = `tabs-${timestamp}.csv`;
     document.getElementById('gdrive-status').textContent = '';
     googleDriveModal.classList.add('show');
@@ -786,27 +564,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // --- Helper: Extract domain from hostname (handles subdomains) ---
   function extractBaseDomain(hostname) {
     let domain = hostname.toLowerCase().replace(/^www\./, '');
-
     if (!domain || !domain.includes('.')) return domain;
-
     const parts = domain.split('.');
-
     if (parts.length >= 3) {
       const multiPartTLDs = [
-        'co.uk', 'org.uk', 'net.uk', 'me.uk',
-        'com.au', 'net.au', 'org.au',
-        'com.br', 'net.br',
-        'com.cn', 'net.cn', 'org.cn',
-        'com.jp', 'co.jp', 'ne.jp', 'or.jp',
-        'com.mx', 'com.sg', 'com.tw',
-        'co.kr', 'or.kr',
-        'co.nz', 'net.nz', 'org.nz',
-        'co.in', 'net.in', 'org.in',
-        'com.hk', 'org.hk',
-        'co.za'
+        'co.uk', 'org.uk', 'net.uk', 'me.uk', 'com.au', 'net.au', 'org.au',
+        'com.br', 'net.br', 'com.cn', 'net.cn', 'org.cn',
+        'com.jp', 'co.jp', 'ne.jp', 'or.jp', 'com.mx', 'com.sg', 'com.tw',
+        'co.kr', 'or.kr', 'co.nz', 'net.nz', 'org.nz',
+        'co.in', 'net.in', 'org.in', 'com.hk', 'org.hk', 'co.za'
       ];
-
-      // Brand/corporate gTLDs where x.brand is an organizational suffix
       const brandTLDs = [
         'sap', 'google', 'amazon', 'microsoft', 'apple', 'aws',
         'ibm', 'oracle', 'cisco', 'samsung', 'sony', 'toyota',
@@ -814,46 +581,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         'siemens', 'bosch', 'philips', 'nokia', 'ericsson',
         'alibaba', 'baidu', 'tencent', 'huawei', 'xiaomi'
       ];
-
       const sharedHostingSuffixes = [
         'github.io', 'gitlab.io', 'netlify.app', 'vercel.app',
         'herokuapp.com', 'firebaseapp.com', 'web.app',
         'blogspot.com', 'blogspot.co.uk', 'blogspot.com.au',
         'wordpress.com', 'tumblr.com', 'medium.com',
         'azurewebsites.net', 'cloudfront.net', 'amazonaws.com',
-        'pages.dev', 'workers.dev', 'r2.dev',
-        'fly.dev', 'deno.dev',
-        'surge.sh', 'now.sh',
-        'appspot.com', 'cloudfunctions.net',
-        'azureedge.net', 'trafficmanager.net',
-        's3.amazonaws.com'
+        'pages.dev', 'workers.dev', 'r2.dev', 'fly.dev', 'deno.dev',
+        'surge.sh', 'now.sh', 'appspot.com', 'cloudfunctions.net',
+        'azureedge.net', 'trafficmanager.net', 's3.amazonaws.com'
       ];
-
       const tld = parts[parts.length - 1];
       const lastTwo = parts.slice(-2).join('.');
       const lastThree = parts.slice(-3).join('.');
-
-      // Brand gTLDs: treat x.brand as a suffix (like co.uk)
-      if (brandTLDs.includes(tld)) {
-        return parts.slice(-3).join('.');
-      }
-
-      // Multi-part ccTLDs
-      if (multiPartTLDs.includes(lastTwo)) {
-        return parts.slice(-3).join('.');
-      }
-
-      // Shared-hosting suffixes
+      
+      if (brandTLDs.includes(tld)) return parts.slice(-3).join('.');
+      if (multiPartTLDs.includes(lastTwo)) return parts.slice(-3).join('.');
       if (sharedHostingSuffixes.includes(lastTwo) || sharedHostingSuffixes.includes(lastThree)) {
-        if (sharedHostingSuffixes.includes(lastTwo)) {
-          return parts.slice(-3).join('.');
-        }
+        if (sharedHostingSuffixes.includes(lastTwo)) return parts.slice(-3).join('.');
         return parts.slice(-4).join('.');
       }
-
       return parts.slice(-2).join('.');
     }
-
     return domain;
   }
 
@@ -885,8 +634,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         showStatus(result.message, true);
       }
     } catch (err) {
-      // Popup may close before response arrives — that's fine,
-      // background continues the work regardless
       console.log('Extract message sent (popup may close):', err.message);
     }
   });
