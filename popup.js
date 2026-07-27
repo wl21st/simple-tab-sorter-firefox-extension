@@ -493,6 +493,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- Changelog data ---
   const changelogData = [
+    { version: '3.2.1', changes: [
+      'Reverted extension icon to previous working design to fix Chrome rendering issue.',
+    ]},
     { version: '3.2.0', changes: [
       'Renamed "Extract Same Domain" to "Extract Same Host". Now matches by exact hostname (case-insensitive).',
       'Fixed cross-window operations ("Filter & Extract", "Merge Windows") getting cancelled prematurely.',
