@@ -493,6 +493,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- Changelog data ---
   const changelogData = [
+    { version: '3.2.2', changes: [
+      'Removed invalid "windows" permission from manifest for Firefox compatibility.',
+    ]},
     { version: '3.2.1', changes: [
       'Reverted extension icon to previous working design to fix Chrome rendering issue.',
     ]},

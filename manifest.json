@@ -1,11 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Simple Tab Manager",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "description": "Sort tabs, merge windows, extract tabs by domain, and save tabs to CSV.",
   "permissions": [
     "tabs",
-    "windows",
     "scripting",
     "identity",
     "storage"
